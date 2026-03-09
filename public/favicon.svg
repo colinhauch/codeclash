@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0369a1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="45" fill="url(#grad)"/>
+  <!-- Crossed swords icon (simplified) -->
+  <g fill="none" stroke="white" stroke-width="4" stroke-linecap="round">
+    <!-- Left sword -->
+    <line x1="25" y1="75" x2="75" y2="25"/>
+    <line x1="70" y1="30" x2="75" y2="25"/>
+    <line x1="75" y1="25" x2="70" y2="20"/>
+    <!-- Right sword -->
+    <line x1="75" y1="75" x2="25" y2="25"/>
+    <line x1="30" y1="30" x2="25" y2="25"/>
+    <line x1="25" y1="25" x2="30" y2="20"/>
+  </g>
+  <!-- Center emblem -->
+  <circle cx="50" cy="50" r="8" fill="white"/>
+  <text x="50" y="55" font-family="Arial Black" font-size="10" fill="#0369a1" text-anchor="middle">7</text>
+</svg>

@@ -1,0 +1,5 @@
+# Results Directory
+
+Tournament results are stored here as JSON files.
+
+Example: `results/2026-03-15.json`

@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "codeclash",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static assets configuration
+  "assets": {
+    "not_found_handling": "single-page-application"
+  },
+
+  // Worker entry point for API routes
+  "main": "./worker/index.ts",
+
+  // KV namespace for tournament results
+  // Run: wrangler kv namespace create RESULTS
+  // Then add the ID here
+  "kv_namespaces": [
+    {
+      "binding": "RESULTS",
+      "id": "YOUR_KV_NAMESPACE_ID_HERE"
+    }
+  ],
+
+  // Observability
+  "observability": {
+    "enabled": true
+  }
+}
