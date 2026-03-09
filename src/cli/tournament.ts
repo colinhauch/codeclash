@@ -9,12 +9,15 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { runMatch } from "./match";
+import { runMatch, runMultiplayerMatch } from "./match";
 import type {
   BotInfo,
   TournamentResult,
   MatchupResult,
   Standing,
+  GrandPrixResult,
+  GrandPrixStanding,
+  MultiplayerGameResult,
 } from "../game/types";
 
 interface TournamentArgs {
@@ -22,6 +25,8 @@ interface TournamentArgs {
   gamesPerMatchup: number;
   moveTimeoutMs: number;
   seed?: number;
+  grandPrixGames: number;
+  grandPrixQualifiers: number;
 }
 
 /**
@@ -34,6 +39,8 @@ function parseArgs(): TournamentArgs {
   let gamesPerMatchup = 20;
   let moveTimeoutMs = 1000;
   let seed: number | undefined;
+  let grandPrixGames = 100;
+  let grandPrixQualifiers = 12;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--output" && i + 1 < args.length) {
@@ -48,10 +55,16 @@ function parseArgs(): TournamentArgs {
     } else if (args[i] === "--seed" && i + 1 < args.length) {
       seed = parseInt(args[i + 1]);
       i++;
+    } else if (args[i] === "--gp-games" && i + 1 < args.length) {
+      grandPrixGames = parseInt(args[i + 1]);
+      i++;
+    } else if (args[i] === "--gp-qualifiers" && i + 1 < args.length) {
+      grandPrixQualifiers = parseInt(args[i + 1]);
+      i++;
     }
   }
 
-  return { outputPath, gamesPerMatchup, moveTimeoutMs, seed };
+  return { outputPath, gamesPerMatchup, moveTimeoutMs, seed, grandPrixGames, grandPrixQualifiers };
 }
 
 /**
@@ -166,6 +179,63 @@ function calculateStandings(
 }
 
 /**
+ * Calculate Grand Prix standings from multiplayer game results
+ */
+function calculateGrandPrixStandings(
+  qualifierIds: string[],
+  games: MultiplayerGameResult[]
+): GrandPrixStanding[] {
+  const stats: Record<
+    string,
+    { totalPoints: number; wins: number; podiums: number; placements: number[] }
+  > = {};
+
+  for (const id of qualifierIds) {
+    stats[id] = { totalPoints: 0, wins: 0, podiums: 0, placements: [] };
+  }
+
+  for (const game of games) {
+    for (const placement of game.placements) {
+      const s = stats[placement.botId];
+      if (!s) continue;
+      s.totalPoints += placement.points;
+      s.placements.push(placement.rank);
+      if (placement.rank === 1) s.wins++;
+      if (placement.rank <= 3) s.podiums++;
+    }
+  }
+
+  const standingsArray: GrandPrixStanding[] = qualifierIds.map((botId) => {
+    const s = stats[botId];
+    const avgPlacement =
+      s.placements.length > 0
+        ? s.placements.reduce((a, b) => a + b, 0) / s.placements.length
+        : 0;
+    return {
+      botId,
+      totalPoints: s.totalPoints,
+      wins: s.wins,
+      podiums: s.podiums,
+      averagePlacement: avgPlacement,
+      placements: s.placements,
+      rank: 0,
+    };
+  });
+
+  standingsArray.sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return a.averagePlacement - b.averagePlacement;
+  });
+
+  for (let i = 0; i < standingsArray.length; i++) {
+    standingsArray[i].rank = i + 1;
+  }
+
+  return standingsArray;
+}
+
+/**
  * Run full tournament
  */
 async function runTournament(): Promise<void> {
@@ -241,6 +311,51 @@ async function runTournament(): Promise<void> {
     );
   }
 
+  // === Grand Prix Phase ===
+  const qualifierCount = Math.min(args.grandPrixQualifiers, bots.length);
+  const qualifierIds = standings.slice(0, qualifierCount).map((s) => s.botId);
+  const qualifierBots = qualifierIds
+    .map((id) => bots.find((b) => b.id === id)!)
+    .filter(Boolean);
+
+  console.log(`\n=== Grand Prix ===`);
+  console.log(
+    `Top ${qualifierCount} qualifiers: ${qualifierBots.map((b) => b.name).join(", ")}`
+  );
+  console.log(`Running ${args.grandPrixGames} multiplayer games...\n`);
+
+  const gpGames: MultiplayerGameResult[] = [];
+
+  for (let game = 0; game < args.grandPrixGames; game++) {
+    const config = {
+      moveTimeoutMs: args.moveTimeoutMs,
+      seed: args.seed ? args.seed + totalGames + game : undefined,
+    };
+
+    const result = await runMultiplayerMatch(qualifierBots, config);
+    gpGames.push(result);
+
+    if ((game + 1) % 10 === 0) {
+      process.stdout.write(`  ${game + 1}/${args.grandPrixGames}\r`);
+    }
+  }
+
+  const gpStandings = calculateGrandPrixStandings(qualifierIds, gpGames);
+  const grandPrix: GrandPrixResult = {
+    qualifiers: qualifierIds,
+    gamesPlayed: args.grandPrixGames,
+    games: gpGames,
+    standings: gpStandings,
+  };
+
+  console.log("\nGrand Prix Standings:");
+  for (const standing of gpStandings) {
+    const bot = bots.find((b) => b.id === standing.botId)!;
+    console.log(
+      `  ${standing.rank}. ${bot.name}: ${standing.totalPoints}pts, ${standing.wins}W, avg ${standing.averagePlacement.toFixed(1)}`
+    );
+  }
+
   // Create tournament result
   const result: TournamentResult = {
     id: `tournament-${Date.now()}`,
@@ -250,6 +365,8 @@ async function runTournament(): Promise<void> {
       gamesPerMatchup: args.gamesPerMatchup,
       moveTimeoutMs: args.moveTimeoutMs,
       seed: args.seed,
+      grandPrixGames: args.grandPrixGames,
+      grandPrixQualifiers: args.grandPrixQualifiers,
     },
     bots: bots.map((b) => ({
       id: b.id,
@@ -259,6 +376,7 @@ async function runTournament(): Promise<void> {
     })),
     matchups,
     standings,
+    grandPrix,
   };
 
   // Ensure output directory exists
