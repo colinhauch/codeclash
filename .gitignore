@@ -13,6 +13,9 @@ out/
 # Dev server
 .vite/
 
+# Wrangler (Cloudflare Workers)
+.wrangler/
+
 # Environment variables
 .env
 .env.local
