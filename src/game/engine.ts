@@ -186,10 +186,21 @@ export function isMoveLegal(state: GameState, move: Move): boolean {
 // =============================================================================
 
 /**
+ * Deep clone game state, restoring Set instances lost by JSON serialization
+ */
+function cloneState(state: GameState): GameState {
+  const newState = JSON.parse(JSON.stringify(state)) as GameState;
+  for (const player of newState.players) {
+    player.numberValues = new Set(state.players.find(p => p.id === player.id)!.numberValues);
+  }
+  return newState;
+}
+
+/**
  * Apply a move and return new state
  */
 export function applyMove(state: GameState, move: Move): GameState {
-  const newState = JSON.parse(JSON.stringify(state)) as GameState;
+  const newState = cloneState(state);
   const player = newState.players[newState.currentPlayerIndex];
 
   if (move.action === "stand") {
@@ -371,7 +382,7 @@ export function calculateFinalScores(
  * End the current round and prepare for next
  */
 export function endRound(state: GameState): GameState {
-  const newState = JSON.parse(JSON.stringify(state)) as GameState;
+  const newState = cloneState(state);
 
   // Score the round
   scoreRound(newState);

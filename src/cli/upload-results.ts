@@ -57,14 +57,14 @@ async function uploadResults(): Promise<void> {
     // Upload as "latest"
     console.log("Uploading as 'latest'...");
     execSync(
-      `wrangler kv key put --binding RESULTS "latest" "${data.replace(/"/g, '\\"')}"`,
+      `wrangler kv key put --remote --binding RESULTS "latest" --path "${resultsPath}"`,
       { stdio: "inherit" }
     );
 
     // Upload with timestamp ID
     console.log(`Uploading as '${resultId}'...`);
     execSync(
-      `wrangler kv key put --binding RESULTS "${resultId}" "${data.replace(/"/g, '\\"')}"`,
+      `wrangler kv key put --remote --binding RESULTS "${resultId}" --path "${resultsPath}"`,
       { stdio: "inherit" }
     );
 
