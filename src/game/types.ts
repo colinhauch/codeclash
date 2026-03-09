@@ -207,6 +207,10 @@ export interface TournamentConfig {
   moveTimeoutMs: number;
   /** Random seed for reproducibility (optional) */
   seed?: number;
+  /** Number of multiplayer games in Grand Prix finals */
+  grandPrixGames?: number;
+  /** Number of bots that qualify for Grand Prix */
+  grandPrixQualifiers?: number;
 }
 
 export interface TournamentResult {
@@ -220,10 +224,12 @@ export interface TournamentResult {
   config: TournamentConfig;
   /** Participating bots */
   bots: Omit<BotInfo, "bot">[];
-  /** All matchup results */
+  /** All matchup results (qualifying round) */
   matchups: MatchupResult[];
-  /** Final standings */
+  /** Qualifying round standings */
   standings: Standing[];
+  /** Grand Prix finals results (top qualifiers in multiplayer games) */
+  grandPrix?: GrandPrixResult;
 }
 
 export interface MatchupResult {
@@ -266,5 +272,41 @@ export interface Standing {
   /** Win rate (wins / total games) */
   winRate: number;
   /** Rank (1 = first place) */
+  rank: number;
+}
+
+// =============================================================================
+// Grand Prix Types
+// =============================================================================
+
+export interface PlayerPlacement {
+  botId: string;
+  rank: number;
+  score: number;
+  points: number;
+}
+
+export interface MultiplayerGameResult {
+  id: string;
+  placements: PlayerPlacement[];
+  moves: MoveHistoryEntry[];
+  finalScores: Record<string, number>;
+  rounds: number;
+}
+
+export interface GrandPrixResult {
+  qualifiers: string[];
+  gamesPlayed: number;
+  games: MultiplayerGameResult[];
+  standings: GrandPrixStanding[];
+}
+
+export interface GrandPrixStanding {
+  botId: string;
+  totalPoints: number;
+  wins: number;
+  podiums: number;
+  averagePlacement: number;
+  placements: number[];
   rank: number;
 }
