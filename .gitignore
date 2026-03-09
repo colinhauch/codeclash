@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+bun.lock
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Dev server
+.vite/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-error.log
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temp files
+.tmp/
+tmp/
+*.tmp
+
+# Results (will be committed selectively)
+results/*.json
+!results/.gitkeep
+.DS_Store
