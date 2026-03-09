@@ -13,12 +13,18 @@
   "main": "./worker/index.ts",
 
   // KV namespace for tournament results
-  // Run: wrangler kv namespace create RESULTS
-  // Then add the ID here
   "kv_namespaces": [
     {
       "binding": "RESULTS",
-      "id": "YOUR_KV_NAMESPACE_ID_HERE"
+      "id": "1de8469db7564a27a61191f497cc6c77"
+    }
+  ],
+
+  // Custom domain routing
+  "routes": [
+    {
+      "pattern": "codeclash.colinhauch.com",
+      "custom_domain": true
     }
   ],
 
