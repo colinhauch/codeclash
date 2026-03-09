@@ -145,7 +145,7 @@ export default function TournamentGrid({
               <div className="flex-1 min-w-0">
                 <h4 className="font-mono font-bold text-lg">{standing.botId}</h4>
                 <p className="text-sm text-[#6b7684]">
-                  {standing.winRate.toFixed(1)}% win rate
+                  {(standing.winRate * 100).toFixed(1)}% win rate
                 </p>
               </div>
 
