@@ -2,24 +2,42 @@
  * CodeClash - Flip 7 Game Types
  *
  * Flip 7 Rules:
- * - Players take turns drawing cards or standing
- * - Goal: Get as close to 7 as possible without going over
- * - If you go over 7, you bust and score 0
- * - Special cards with value 0 are wild and let you set any value 1-7
- * - Player with highest score (closest to 7 without busting) wins
+ * - Players draw cards to a row and score based on the sum of numbers
+ * - Action cards affect other players (Freeze, Flip Three, Second Chance)
+ * - Score modifiers add to or multiply your total
+ * - First to 200 points wins
+ * - If you draw a duplicate number card, you bust (score 0 this round)
+ * - If you get 7 unique number cards, you win +15 bonus and end the round
  */
 
 // =============================================================================
 // Card Types
 // =============================================================================
 
-export type Suit = "hearts" | "diamonds" | "clubs" | "spades";
+export type CardType =
+  | "number"
+  | "modifier" // +2, +4, +6, +8, +10, x2
+  | "action"; // Freeze, Flip Three, Second Chance
 
-export interface Card {
-  /** Card value: 1-6 for normal cards, 0 for wild cards */
-  value: number;
-  suit: Suit;
+export type ModifierType = "+2" | "+4" | "+6" | "+8" | "+10" | "x2";
+export type ActionType = "freeze" | "flip-three" | "second-chance";
+
+export interface NumberCard {
+  type: "number";
+  value: number; // 0-12
 }
+
+export interface ModifierCard {
+  type: "modifier";
+  modifier: ModifierType;
+}
+
+export interface ActionCard {
+  type: "action";
+  action: ActionType;
+}
+
+export type Card = NumberCard | ModifierCard | ActionCard;
 
 // =============================================================================
 // Player State
@@ -28,16 +46,24 @@ export interface Card {
 export interface PlayerState {
   /** Player's unique identifier */
   id: string;
-  /** Cards in hand */
-  hand: Card[];
-  /** Current total (sum of card values, with wilds resolved) */
-  total: number;
-  /** Whether player has busted (total > 7) */
+  /** Cards in the line in front of the player (face up) */
+  cards: Card[];
+  /** Sum of number card values */
+  numberTotal: number;
+  /** Whether player has busted this round */
   busted: boolean;
   /** Whether player has chosen to stand */
   stood: boolean;
-  /** Wild card values chosen by player (index matches wild card position) */
-  wildChoices: number[];
+  /** Cumulative score across all rounds */
+  totalScore: number;
+  /** Action cards played on this player */
+  actionCards: ActionCard[];
+  /** Whether "Flip Three" is active (must draw 3 more cards) */
+  flipThreeActive: boolean;
+  /** Remaining draws needed for Flip Three */
+  flipThreeRemaining: number;
+  /** Track which number values player has (for bust detection) */
+  numberValues: Set<number>;
 }
 
 // =============================================================================
@@ -49,15 +75,17 @@ export interface GameState {
   players: PlayerState[];
   /** Cards remaining in deck (hidden from bots) */
   deck: Card[];
-  /** All cards that have been revealed this game */
+  /** All cards that have been revealed this round */
   revealedCards: Card[];
   /** Index of current player in players array */
   currentPlayerIndex: number;
   /** Current round number (starts at 1) */
   round: number;
-  /** Whether game has ended */
+  /** Whether round has ended */
+  roundOver: boolean;
+  /** Whether game has ended (someone reached 200 points) */
   gameOver: boolean;
-  /** Winner player ID, or null if draw/ongoing */
+  /** Winner player ID, or null if ongoing */
   winner: string | null;
 }
 
@@ -67,18 +95,22 @@ export interface GameState {
 
 /**
  * The game state visible to a bot.
- * Bots cannot see the deck or other players' exact cards.
+ * Bots cannot see the deck or other players' cards.
  */
 export interface VisibleGameState {
-  /** Bot's own hand */
-  myHand: Card[];
-  /** Bot's current total */
-  myTotal: number;
+  /** Bot's own cards */
+  myCards: Card[];
+  /** Sum of bot's number cards */
+  myNumberTotal: number;
   /** Whether bot has busted */
   myBusted: boolean;
+  /** Whether bot has stood */
+  myStood: boolean;
+  /** Bot's cumulative score */
+  myScore: number;
   /** Information about opponents */
   opponents: OpponentInfo[];
-  /** All cards that have been revealed (drawn) this game */
+  /** All cards that have been revealed this round */
   revealedCards: Card[];
   /** Current round number */
   round: number;
@@ -88,14 +120,18 @@ export interface VisibleGameState {
 
 export interface OpponentInfo {
   id: string;
-  /** Number of cards opponent has */
+  /** Number of cards opponent has face up */
   cardCount: number;
+  /** Sum of opponent's number cards (only visible if stood/busted) */
+  numberTotal: number | null;
   /** Whether opponent has busted */
   busted: boolean;
   /** Whether opponent has stood */
   stood: boolean;
-  /** Opponent's revealed total (only visible if they've stood or busted) */
-  revealedTotal: number | null;
+  /** Opponent's cumulative score */
+  score: number;
+  /** Number of action cards played on opponent */
+  actionCardCount: number;
 }
 
 // =============================================================================
@@ -106,8 +142,6 @@ export type MoveAction = "draw" | "stand";
 
 export interface Move {
   action: MoveAction;
-  /** If drawing a wild card, what value to assign (1-7). Required for wild cards. */
-  wildValue?: number;
 }
 
 // =============================================================================
@@ -122,10 +156,8 @@ export interface BotContext {
   myId: string;
   /** Legal moves available */
   legalMoves: MoveAction[];
-  /** History of all moves this game */
+  /** History of all moves this round */
   moveHistory: MoveHistoryEntry[];
-  /** Time remaining in milliseconds (if using time bank) */
-  timeRemaining?: number;
 }
 
 export interface MoveHistoryEntry {
@@ -133,8 +165,8 @@ export interface MoveHistoryEntry {
   action: MoveAction;
   /** Card drawn, if action was "draw" */
   cardDrawn?: Card;
-  /** New total after this move */
-  newTotal: number;
+  /** Number total after this move */
+  numberTotal: number;
   /** Whether this move caused a bust */
   busted: boolean;
 }
