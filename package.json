@@ -10,6 +10,7 @@
     "deploy": "vite build && wrangler deploy",
     "test": "bun run src/cli/test-harness.ts",
     "tournament": "bun run src/cli/tournament.ts",
+    "upload-results": "bun run src/cli/upload-results.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.0.0",
     "@cloudflare/workers-types": "^4.20250303.0",
+    "@types/node": "^25.3.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",

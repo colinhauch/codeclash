@@ -17,8 +17,8 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["src", "worker"],
-  "exclude": ["node_modules", "submissions"]
+  "include": ["src", "worker", "submissions"],
+  "exclude": ["node_modules"]
 }
