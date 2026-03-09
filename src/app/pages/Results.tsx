@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TournamentResult } from "../../game/types";
 import TournamentGrid from "../components/TournamentGrid";
+import GrandPrixView from "../components/GrandPrixView";
+
+type Tab = "qualifying" | "grandprix";
 
 export default function Results() {
   const navigate = useNavigate();
   const [result, setResult] = useState<TournamentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("qualifying");
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -16,8 +20,12 @@ export default function Results() {
         if (!response.ok) {
           throw new Error("No tournament results available yet");
         }
-        const data = await response.json();
+        const data: TournamentResult = await response.json();
         setResult(data);
+        // Default to Grand Prix tab when data exists
+        if (data.grandPrix) {
+          setActiveTab("grandprix");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load results");
       } finally {
@@ -27,7 +35,6 @@ export default function Results() {
 
     fetchResults();
 
-    // Poll for updates every 5 seconds
     const interval = setInterval(fetchResults, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -35,6 +42,12 @@ export default function Results() {
   const handleMatchupClick = (bot1: string, bot2: string) => {
     navigate(`/results/${bot1}-vs-${bot2}`);
   };
+
+  const handleGrandPrixGameClick = (gameId: string) => {
+    navigate(`/results/grandprix/game/${gameId}`);
+  };
+
+  const hasGrandPrix = result?.grandPrix != null;
 
   return (
     <div className="container-max space-y-8 max-w-6xl mx-auto">
@@ -51,7 +64,7 @@ export default function Results() {
         </div>
       ) : error ? (
         <div className="card bg-[#ef476f]/20 border border-[#ef476f]/50 text-center py-16 space-y-4">
-          <p className="text-lg text-[#ef476f] font-bold">⚠️ {error}</p>
+          <p className="text-lg text-[#ef476f] font-bold">{error}</p>
           <p className="text-sm text-[#b3bcc5]">
             Results will appear here once a tournament has been run and uploaded.
           </p>
@@ -60,7 +73,44 @@ export default function Results() {
           </p>
         </div>
       ) : result ? (
-        <TournamentGrid result={result} onMatchupClick={handleMatchupClick} />
+        <>
+          {/* Tab Bar */}
+          {hasGrandPrix && (
+            <div className="flex gap-2 border-b border-[#3a4563] pb-0">
+              <button
+                onClick={() => setActiveTab("qualifying")}
+                className={`px-6 py-3 font-mono font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === "qualifying"
+                    ? "border-[#d4af37] text-[#d4af37]"
+                    : "border-transparent text-[#6b7684] hover:text-[#b3bcc5]"
+                }`}
+              >
+                QUALIFYING
+              </button>
+              <button
+                onClick={() => setActiveTab("grandprix")}
+                className={`px-6 py-3 font-mono font-bold text-sm border-b-2 transition-colors ${
+                  activeTab === "grandprix"
+                    ? "border-[#d4af37] text-[#d4af37]"
+                    : "border-transparent text-[#6b7684] hover:text-[#b3bcc5]"
+                }`}
+              >
+                GRAND PRIX
+              </button>
+            </div>
+          )}
+
+          {/* Tab Content */}
+          {activeTab === "qualifying" ? (
+            <TournamentGrid result={result} onMatchupClick={handleMatchupClick} />
+          ) : result.grandPrix ? (
+            <GrandPrixView
+              grandPrix={result.grandPrix}
+              bots={result.bots}
+              onGameClick={handleGrandPrixGameClick}
+            />
+          ) : null}
+        </>
       ) : null}
     </div>
   );

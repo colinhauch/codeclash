@@ -19,6 +19,7 @@ export default function App() {
         <Route path="results" element={<Results />} />
         <Route path="results/:bot1-vs-:bot2" element={<Matchup />} />
         <Route path="results/:bot1-vs-:bot2/game/:gameId" element={<GameReplay />} />
+        <Route path="results/grandprix/game/:gameId" element={<GameReplay />} />
       </Route>
     </Routes>
   );

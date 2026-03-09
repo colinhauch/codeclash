@@ -112,6 +112,46 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
     );
   };
 
+  const getCompactPlayerDisplay = (player: PlayerState, isCurrentPlayer: boolean) => {
+    const statusColor = player.busted
+      ? "text-[#ef476f]"
+      : player.stood
+        ? "text-[#06d6a0]"
+        : "text-[#00d9ff]";
+
+    const statusText = player.busted ? "BUST" : player.stood ? "STOOD" : "ACTIVE";
+
+    return (
+      <div
+        key={player.id}
+        className={`p-3 rounded-lg bg-[#151a30] border ${
+          isCurrentPlayer
+            ? "border-[#ffd60a] ring-1 ring-[#ffd60a]"
+            : "border-[#3a4563]"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="font-mono font-bold text-sm truncate">{player.id}</p>
+            <p className={`text-xs font-mono font-semibold ${statusColor}`}>
+              {statusText}
+            </p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="text-xl font-mono font-bold text-[#d4af37]">
+              {player.numberTotal}
+            </p>
+            <p className="text-xs text-[#6b7684] font-mono">
+              {player.cards.length} cards / {player.totalScore} total
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const isCompact = gameState.players.length > 4;
+
   const currentPlayer =
     gameState.players[gameState.currentPlayerIndex];
   const otherPlayers = gameState.players.filter(
@@ -123,7 +163,7 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
       {/* Current Player - Featured */}
       <div>
         <h3 className="art-deco-title text-2xl mb-6">
-          {currentPlayer.busted ? "✗" : currentPlayer.stood ? "✓" : "→"} Current
+          {currentPlayer.busted ? "X" : currentPlayer.stood ? "+" : ">"} Current
           Player
         </h3>
         {getPlayerDisplay(currentPlayer, true)}
@@ -133,9 +173,17 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
       {otherPlayers.length > 0 && (
         <div>
           <h3 className="art-deco-title text-2xl mb-6">Opponents</h3>
-          <div className="grid md:grid-cols-2 gap-6">
-            {otherPlayers.map((player) => getPlayerDisplay(player, false))}
-          </div>
+          {isCompact ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {otherPlayers.map((player) =>
+                getCompactPlayerDisplay(player, false)
+              )}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-6">
+              {otherPlayers.map((player) => getPlayerDisplay(player, false))}
+            </div>
+          )}
         </div>
       )}
 

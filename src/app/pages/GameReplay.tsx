@@ -1,28 +1,33 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import type { TournamentResult, GameResult, GameState } from "../../game/types";
+import type {
+  TournamentResult,
+  GameState,
+  MoveHistoryEntry,
+} from "../../game/types";
 import { createInitialState, applyMove } from "../../game/engine";
 import GameVisualizer from "../components/GameVisualizer";
 import MoveList from "../components/MoveList";
 
 export default function GameReplay() {
-  const { bot1: bot1Param, bot2: bot2Param, gameId: gameIdParam } = useParams<{
-    bot1: string;
-    bot2: string;
-    gameId: string;
-  }>();
+  const params = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isGrandPrix = location.pathname.includes("/grandprix/");
+  const bot1 = params.bot1 || "";
+  const bot2 = params.bot2 || "";
+  const gameId = params.gameId || "";
 
   const [result, setResult] = useState<TournamentResult | null>(null);
-  const [game, setGame] = useState<GameResult | null>(null);
+  const [moves, setMoves] = useState<MoveHistoryEntry[]>([]);
+  const [finalScores, setFinalScores] = useState<Record<string, number>>({});
+  const [rounds, setRounds] = useState(0);
+  const [playerIds, setPlayerIds] = useState<string[]>([]);
   const [gameStates, setGameStates] = useState<GameState[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const bot1 = bot1Param || "";
-  const bot2 = bot2Param || "";
-  const gameId = gameIdParam || "";
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -31,7 +36,7 @@ export default function GameReplay() {
         if (!response.ok) {
           throw new Error("No tournament results available");
         }
-        const data = await response.json();
+        const data: TournamentResult = await response.json();
         setResult(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load results");
@@ -43,20 +48,56 @@ export default function GameReplay() {
     fetchResults();
   }, []);
 
+  // Find the game when result loads
+  useEffect(() => {
+    if (!result) return;
+
+    if (isGrandPrix) {
+      if (!result.grandPrix) {
+        setError("Grand Prix data not found");
+        return;
+      }
+      const game = result.grandPrix.games.find((g) => g.id === gameId);
+      if (!game) {
+        setError("Game not found");
+        return;
+      }
+      setMoves(game.moves);
+      setFinalScores(game.finalScores);
+      setRounds(game.rounds);
+      setPlayerIds(result.grandPrix.qualifiers);
+    } else {
+      const matchup = result.matchups.find(
+        (m) =>
+          (m.bot1 === bot1 && m.bot2 === bot2) ||
+          (m.bot1 === bot2 && m.bot2 === bot1)
+      );
+      if (!matchup) {
+        setError("Matchup not found");
+        return;
+      }
+      const game = matchup.games.find((g) => g.id === gameId);
+      if (!game) {
+        setError("Game not found");
+        return;
+      }
+      setMoves(game.moves);
+      setFinalScores(game.finalScores);
+      setRounds(game.rounds);
+      setPlayerIds([bot1, bot2]);
+    }
+  }, [result, bot1, bot2, gameId, isGrandPrix]);
+
   // Reconstruct game states from moves
   useEffect(() => {
-    if (!game) return;
+    if (moves.length === 0 || playerIds.length === 0) return;
 
     try {
       const states: GameState[] = [];
-
-      // Create initial state with the correct player order
-      const botIds = [bot1, bot2];
-      let state = createInitialState(botIds);
+      let state = createInitialState(playerIds);
       states.push(JSON.parse(JSON.stringify(state)));
 
-      // Apply each move in sequence
-      for (const move of game.moves) {
+      for (const move of moves) {
         state = applyMove(state, move);
         states.push(JSON.parse(JSON.stringify(state)));
       }
@@ -66,31 +107,17 @@ export default function GameReplay() {
       console.error("Error reconstructing game state:", err);
       setError("Failed to reconstruct game replay");
     }
-  }, [game, bot1, bot2]);
-
-  // Find the game when result loads
-  useEffect(() => {
-    if (!result) return;
-
-    const matchup = result.matchups.find(
-      (m) => (m.bot1 === bot1 && m.bot2 === bot2) || (m.bot1 === bot2 && m.bot2 === bot1)
-    );
-
-    if (!matchup) {
-      setError("Matchup not found");
-      return;
-    }
-
-    const foundGame = matchup.games.find((g) => g.id === gameId);
-    if (!foundGame) {
-      setError("Game not found");
-      return;
-    }
-
-    setGame(foundGame);
-  }, [result, bot1, bot2, gameId]);
+  }, [moves, playerIds]);
 
   const currentGameState = gameStates[currentMoveIndex + 1];
+
+  const handleBack = () => {
+    if (isGrandPrix) {
+      navigate("/results");
+    } else {
+      navigate(`/results/${bot1}-vs-${bot2}`);
+    }
+  };
 
   if (loading) {
     return (
@@ -106,19 +133,16 @@ export default function GameReplay() {
     return (
       <div className="container-max">
         <div className="card bg-[#ef476f]/20 border border-[#ef476f]/50 text-center py-16 space-y-4">
-          <p className="text-lg text-[#ef476f] font-bold">⚠️ {error}</p>
-          <button
-            onClick={() => navigate(`/results/${bot1}-vs-${bot2}`)}
-            className="btn btn-primary"
-          >
-            Back to Matchup
+          <p className="text-lg text-[#ef476f] font-bold">{error}</p>
+          <button onClick={handleBack} className="btn btn-primary">
+            Back
           </button>
         </div>
       </div>
     );
   }
 
-  if (!game || !currentGameState) {
+  if (!currentGameState || moves.length === 0) {
     return (
       <div className="container-max">
         <div className="card text-center py-16">
@@ -128,38 +152,36 @@ export default function GameReplay() {
     );
   }
 
+  const title = isGrandPrix
+    ? "Grand Prix Game"
+    : `${bot1} vs ${bot2}`;
+
   return (
     <div className="container-max space-y-8 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate(`/results/${bot1}-vs-${bot2}`)}
+          onClick={handleBack}
           className="btn btn-ghost flex items-center gap-2"
         >
-          ← Back to Matchup
+          {isGrandPrix ? "← Back to Grand Prix" : "← Back to Matchup"}
         </button>
-        <h1 className="art-deco-title text-2xl">
-          {bot1} vs {bot2}
-        </h1>
+        <h1 className="art-deco-title text-2xl">{title}</h1>
         <div className="text-right">
-          <p className="text-xs text-[#6b7684] font-mono">Game {gameId}</p>
-          <p className="font-mono font-bold text-[#d4af37]">
-            {game.finalScores[bot1]} - {game.finalScores[bot2]}
+          <p className="text-xs text-[#6b7684] font-mono">
+            {rounds} rounds, {moves.length} moves
           </p>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Game Visualizer - Takes up 2 columns */}
         <div className="lg:col-span-2">
           <GameVisualizer gameState={currentGameState} />
         </div>
-
-        {/* Move List - Takes up 1 column */}
         <div>
           <MoveList
-            moves={game.moves}
+            moves={moves}
             currentMoveIndex={currentMoveIndex}
             onMoveSelect={setCurrentMoveIndex}
             compact={true}
@@ -169,32 +191,18 @@ export default function GameReplay() {
 
       {/* Game Summary */}
       <div className="card-elevated">
-        <h3 className="art-deco-title text-xl mb-6">Game Summary</h3>
-        <div className="grid md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <p className="text-xs text-[#6b7684] font-mono mb-2">ROUNDS</p>
-            <p className="text-2xl font-mono font-bold text-[#d4af37]">
-              {game.rounds}
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-[#6b7684] font-mono mb-2">MOVES</p>
-            <p className="text-2xl font-mono font-bold text-[#00d9ff]">
-              {game.moves.length}
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-[#6b7684] font-mono mb-2">{bot1}</p>
-            <p className="text-2xl font-mono font-bold text-[#d4af37]">
-              {game.finalScores[bot1]}
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-[#6b7684] font-mono mb-2">{bot2}</p>
-            <p className="text-2xl font-mono font-bold text-[#d4af37]">
-              {game.finalScores[bot2]}
-            </p>
-          </div>
+        <h3 className="art-deco-title text-xl mb-6">Final Scores</h3>
+        <div className={`grid gap-4 ${playerIds.length <= 4 ? `md:grid-cols-${playerIds.length}` : "md:grid-cols-4 lg:grid-cols-6"}`}>
+          {playerIds
+            .sort((a, b) => (finalScores[b] || 0) - (finalScores[a] || 0))
+            .map((id) => (
+              <div key={id} className="text-center">
+                <p className="text-xs text-[#6b7684] font-mono mb-2">{id}</p>
+                <p className="text-2xl font-mono font-bold text-[#d4af37]">
+                  {finalScores[id] || 0}
+                </p>
+              </div>
+            ))}
         </div>
       </div>
     </div>
