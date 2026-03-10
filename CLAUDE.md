@@ -1,0 +1,1 @@
+This project uses `bun` instead of `npm`. When using the bun command, use this path (`~/.bun/bin/bun`) instead of actually typing "bun". 
