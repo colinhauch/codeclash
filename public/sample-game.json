@@ -1,0 +1,595 @@
+{
+  "playerIds": [
+    "aggressive",
+    "conservative"
+  ],
+  "id": "aggressive-vs-conservative-1773110857315",
+  "winner": "conservative",
+  "moves": [
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "modifier",
+        "modifier": "+8"
+      },
+      "roundScore": 0,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 2
+      },
+      "roundScore": 2,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "action",
+        "action": "flip-three"
+      },
+      "roundScore": 0,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 4
+      },
+      "roundScore": 6,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 7,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 5
+      },
+      "roundScore": 11,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 23,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "stand",
+      "roundScore": 23,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 12,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 3
+      },
+      "roundScore": 3,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 19,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 13,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 5
+      },
+      "roundScore": 24,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 25,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 32,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "stand",
+      "roundScore": 32,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 7,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 5
+      },
+      "roundScore": 12,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "action",
+        "action": "freeze"
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 24,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "modifier",
+        "modifier": "+4"
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 34,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "action",
+        "action": "second-chance"
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "action",
+        "action": "flip-three"
+      },
+      "roundScore": 34,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 11
+      },
+      "roundScore": 21,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 9
+      },
+      "roundScore": 43,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "stand",
+      "roundScore": 43,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 10,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 9
+      },
+      "roundScore": 19,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 7,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 3
+      },
+      "roundScore": 3,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 11
+      },
+      "roundScore": 18,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 11
+      },
+      "roundScore": 14,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 30,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 26,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 4
+      },
+      "roundScore": 34,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 9
+      },
+      "roundScore": 35,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "modifier",
+        "modifier": "+4"
+      },
+      "roundScore": 34,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "stand",
+      "roundScore": 35,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 11
+      },
+      "roundScore": 0,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 3
+      },
+      "roundScore": 3,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "modifier",
+        "modifier": "x2"
+      },
+      "roundScore": 0,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "action",
+        "action": "freeze"
+      },
+      "roundScore": 3,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 11
+      },
+      "roundScore": 11,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 5
+      },
+      "roundScore": 8,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 7
+      },
+      "roundScore": 18,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 20,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 30,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 8
+      },
+      "roundScore": 28,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 10
+      },
+      "roundScore": 40,
+      "isActive": true
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 6
+      },
+      "roundScore": 34,
+      "isActive": true
+    },
+    {
+      "playerId": "conservative",
+      "action": "stand",
+      "roundScore": 40,
+      "isActive": false
+    },
+    {
+      "playerId": "aggressive",
+      "action": "draw",
+      "cardDrawn": {
+        "type": "number",
+        "value": 12
+      },
+      "roundScore": 0,
+      "isActive": false
+    }
+  ],
+  "finalScores": {
+    "aggressive": 164,
+    "conservative": 214
+  },
+  "rounds": 6
+}

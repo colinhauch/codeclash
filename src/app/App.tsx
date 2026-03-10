@@ -7,6 +7,7 @@ import API from "./pages/API";
 import Results from "./pages/Results";
 import Matchup from "./pages/Matchup";
 import GameReplay from "./pages/GameReplay";
+import SampleReplay from "./pages/SampleReplay";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="results/:bot1-vs-:bot2" element={<Matchup />} />
         <Route path="results/:bot1-vs-:bot2/game/:gameId" element={<GameReplay />} />
         <Route path="results/grandprix/game/:gameId" element={<GameReplay />} />
+        <Route path="sample-replay" element={<SampleReplay />} />
       </Route>
     </Routes>
   );
