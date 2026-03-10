@@ -46,24 +46,18 @@ export type Card = NumberCard | ModifierCard | ActionCard;
 export interface PlayerState {
   /** Player's unique identifier */
   id: string;
-  /** Cards in the line in front of the player (face up) */
-  cards: Card[];
+  /** Denotes if a player is active*/
+  isActive: boolean;
+  /** Number cards in the line in front of the player (face up) */
+  numberCards: NumberCard[];
   /** Sum of number card values */
-  numberTotal: number;
-  /** Whether player has busted this round */
-  busted: boolean;
-  /** Whether player has chosen to stand */
-  stood: boolean;
-  /** Cumulative score across all rounds */
+  roundScore: number;
+  /** Cumulative score across all rounds, including current round */
   totalScore: number;
-  /** Action cards played on this player */
-  actionCards: ActionCard[];
-  /** Whether "Flip Three" is active (must draw 3 more cards) */
-  flipThreeActive: boolean;
-  /** Remaining draws needed for Flip Three */
-  flipThreeRemaining: number;
-  /** Track which number values player has (for bust detection) */
-  numberValues: Set<number>;
+  /** Modifier cards collected by this player */
+  modifierCards: ModifierCard[];
+  /** This player has a second chance card */
+  secondChanceActive: boolean;
 }
 
 // =============================================================================
@@ -90,51 +84,6 @@ export interface GameState {
 }
 
 // =============================================================================
-// Visible State (What bots can see)
-// =============================================================================
-
-/**
- * The game state visible to a bot.
- * Bots cannot see the deck or other players' cards.
- */
-export interface VisibleGameState {
-  /** Bot's own cards */
-  myCards: Card[];
-  /** Sum of bot's number cards */
-  myNumberTotal: number;
-  /** Whether bot has busted */
-  myBusted: boolean;
-  /** Whether bot has stood */
-  myStood: boolean;
-  /** Bot's cumulative score */
-  myScore: number;
-  /** Information about opponents */
-  opponents: OpponentInfo[];
-  /** All cards that have been revealed this round */
-  revealedCards: Card[];
-  /** Current round number */
-  round: number;
-  /** Number of cards remaining in deck */
-  cardsRemaining: number;
-}
-
-export interface OpponentInfo {
-  id: string;
-  /** Number of cards opponent has face up */
-  cardCount: number;
-  /** Sum of opponent's number cards (only visible if stood/busted) */
-  numberTotal: number | null;
-  /** Whether opponent has busted */
-  busted: boolean;
-  /** Whether opponent has stood */
-  stood: boolean;
-  /** Opponent's cumulative score */
-  score: number;
-  /** Number of action cards played on opponent */
-  actionCardCount: number;
-}
-
-// =============================================================================
 // Moves
 // =============================================================================
 
@@ -144,31 +93,15 @@ export interface Move {
   action: MoveAction;
 }
 
-// =============================================================================
-// Bot Context
-// =============================================================================
-
-/**
- * Additional context provided to bots to help with decision-making.
- */
-export interface BotContext {
-  /** Bot's player ID */
-  myId: string;
-  /** Legal moves available */
-  legalMoves: MoveAction[];
-  /** History of all moves this round */
-  moveHistory: MoveHistoryEntry[];
-}
-
 export interface MoveHistoryEntry {
   playerId: string;
   action: MoveAction;
   /** Card drawn, if action was "draw" */
   cardDrawn?: Card;
-  /** Number total after this move */
-  numberTotal: number;
-  /** Whether this move caused a bust */
-  busted: boolean;
+  /** Player's round score after this move */
+  roundScore: number;
+  /** Whether the player is still active after this move */
+  isActive: boolean;
 }
 
 // =============================================================================
@@ -177,8 +110,9 @@ export interface MoveHistoryEntry {
 
 /**
  * The function signature every bot must implement.
+ * Bots receive the full game state and their own player ID.
  */
-export type Bot = (state: VisibleGameState, ctx: BotContext) => Move;
+export type Bot = (state: GameState, myId: string) => Move;
 
 /**
  * Bot metadata for registration.

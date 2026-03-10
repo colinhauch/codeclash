@@ -4,14 +4,14 @@
  * Copy this file to submissions/your-bot-name.ts and implement your strategy!
  *
  * Your bot receives:
- * - state: The visible game state (your cards, opponents' status, revealed cards)
- * - ctx: Additional context (legal moves, move history, your ID)
+ * - state: The full game state (all players' cards, scores, deck size, etc.)
+ * - myId: Your player ID — use it to find yourself in state.players
  *
  * Your bot must return:
  * - A Move object with action: "draw" or "stand"
  */
 
-import type { BotInfo, VisibleGameState, BotContext, Move } from "../src/game/types";
+import type { BotInfo, GameState, Move } from "../src/game/types";
 import { helpers } from "../src/game/helpers";
 
 // =============================================================================
@@ -26,16 +26,16 @@ const bot: BotInfo = {
   name: "My Awesome Bot",
   author: "Your Name",
   description: "Describe your strategy here",
-  bot: (state: VisibleGameState, ctx: BotContext): Move => {
-    // Analyze the current state
-    const analysis = helpers.analyzeState(state, ctx);
+  bot: (state: GameState, myId: string): Move => {
+    const me = state.players.find((p) => p.id === myId)!;
+    const analysis = helpers.analyzeState(state, myId);
 
-    // Your strategy goes here
-    // For example: draw if we're winning and have few unique cards
+    // Your strategy goes here.
+    // Example: draw if we have fewer than 5 unique numbers and we're ahead of opponents
     if (
       analysis.myUniqueNumbers < 5 &&
-      analysis.bestOpponentTotal !== null &&
-      state.myNumberTotal > analysis.bestOpponentTotal
+      analysis.bestOpponentRoundScore !== null &&
+      me.roundScore > analysis.bestOpponentRoundScore
     ) {
       return helpers.draw();
     }

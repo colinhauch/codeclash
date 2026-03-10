@@ -14,8 +14,6 @@ import type {
 import {
   createInitialState,
   createInitialStateSeeded,
-  getVisibleState,
-  getBotContext,
   getLegalMoves,
   applyMove,
   isRoundOver,
@@ -65,10 +63,6 @@ export async function runMatch(
         ? bot1.bot
         : bot2.bot;
 
-    // Get visible state and context
-    const visibleState = getVisibleState(state, currentPlayer.id);
-    const botContext = getBotContext(state, currentPlayer.id);
-
     // Get legal moves
     const legalMoves = getLegalMoves(state);
     if (legalMoves.length === 0) {
@@ -82,7 +76,7 @@ export async function runMatch(
     let move;
     try {
       move = await executeWithTimeout(
-        () => bot(visibleState, botContext),
+        () => bot(state, currentPlayer.id),
         config.moveTimeoutMs,
         { action: "stand" as const }
       );
@@ -97,14 +91,19 @@ export async function runMatch(
     }
 
     // Apply move and record
+    const prevDeckLength = state.deck.length;
     state = applyMove(state, move);
-    const newTotal = currentPlayer.numberTotal;
+    const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
+    const cardDrawn = move.action === "draw" && state.deck.length < prevDeckLength
+      ? state.revealedCards[state.revealedCards.length - 1]
+      : undefined;
 
     moveHistory.push({
       playerId: currentPlayer.id,
       action: move.action,
-      numberTotal: newTotal,
-      busted: currentPlayer.busted,
+      cardDrawn,
+      roundScore: updatedPlayer.roundScore,
+      isActive: updatedPlayer.isActive,
     });
   }
 
@@ -149,9 +148,6 @@ export async function runMultiplayerMatch(
     const currentPlayer = state.players[state.currentPlayerIndex];
     const botFn = botMap.get(currentPlayer.id)!;
 
-    const visibleState = getVisibleState(state, currentPlayer.id);
-    const botContext = getBotContext(state, currentPlayer.id);
-
     const legalMoves = getLegalMoves(state);
     if (legalMoves.length === 0) {
       state.currentPlayerIndex =
@@ -162,7 +158,7 @@ export async function runMultiplayerMatch(
     let move;
     try {
       move = await executeWithTimeout(
-        () => botFn(visibleState, botContext),
+        () => botFn(state, currentPlayer.id),
         config.moveTimeoutMs,
         { action: "stand" as const }
       );
@@ -174,13 +170,19 @@ export async function runMultiplayerMatch(
       move = { action: "stand" as const };
     }
 
+    const prevDeckLength = state.deck.length;
     state = applyMove(state, move);
+    const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
+    const cardDrawn = move.action === "draw" && state.deck.length < prevDeckLength
+      ? state.revealedCards[state.revealedCards.length - 1]
+      : undefined;
 
     moveHistory.push({
       playerId: currentPlayer.id,
       action: move.action,
-      numberTotal: currentPlayer.numberTotal,
-      busted: currentPlayer.busted,
+      cardDrawn,
+      roundScore: updatedPlayer.roundScore,
+      isActive: updatedPlayer.isActive,
     });
   }
 

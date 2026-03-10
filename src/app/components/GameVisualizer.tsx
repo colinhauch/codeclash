@@ -6,12 +6,24 @@ interface GameVisualizerProps {
 }
 
 export default function GameVisualizer({ gameState }: GameVisualizerProps) {
+  const getPlayerStatus = (player: PlayerState) => {
+    if (!player.isActive && player.roundScore === 0 && player.numberCards.length === 0) {
+      return "BUSTED";
+    }
+    if (!player.isActive) {
+      return "STOOD";
+    }
+    return "ACTIVE";
+  };
+
   const getPlayerDisplay = (player: PlayerState, isCurrentPlayer: boolean) => {
-    const statusColor = player.busted
-      ? "text-[#ef476f]"
-      : player.stood
-        ? "text-[#06d6a0]"
-        : "text-[#00d9ff]";
+    const status = getPlayerStatus(player);
+    const statusColor =
+      status === "BUSTED"
+        ? "text-[#ef476f]"
+        : status === "STOOD"
+          ? "text-[#06d6a0]"
+          : "text-[#00d9ff]";
 
     return (
       <div
@@ -23,14 +35,14 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
           <div>
             <h4 className="font-mono font-bold text-lg">{player.id}</h4>
             <p className={`text-sm font-mono font-semibold ${statusColor}`}>
-              {player.busted ? "BUSTED" : player.stood ? "STOOD" : "ACTIVE"}
+              {status}
             </p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-mono font-bold text-[#d4af37]">
-              {player.numberTotal}
+              {player.roundScore}
             </div>
-            <p className="text-xs text-[#6b7684]">points</p>
+            <p className="text-xs text-[#6b7684]">round pts</p>
           </div>
         </div>
 
@@ -42,14 +54,12 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
               NUMBERS
             </p>
             <div className="flex flex-wrap gap-2">
-              {player.cards.filter((c) => c.type === "number").length > 0 ? (
-                player.cards
-                  .filter((c) => c.type === "number")
-                  .map((card, idx) => (
-                    <div key={idx} className="w-16 h-24">
-                      <Card card={card} active={isCurrentPlayer} busted={player.busted} />
-                    </div>
-                  ))
+              {player.numberCards.length > 0 ? (
+                player.numberCards.map((card, idx) => (
+                  <div key={idx} className="w-16 h-24">
+                    <Card card={card} active={isCurrentPlayer} busted={status === "BUSTED"} />
+                  </div>
+                ))
               ) : (
                 <p className="text-xs text-[#6b7684]">No number cards</p>
               )}
@@ -57,43 +67,23 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
           </div>
 
           {/* Modifier Cards */}
-          {player.cards.some((c) => c.type === "modifier") && (
+          {player.modifierCards.length > 0 && (
             <div>
               <p className="text-xs text-[#6b7684] font-mono font-semibold mb-3 tracking-widest">
                 MODIFIERS
               </p>
               <div className="flex flex-wrap gap-2">
-                {player.cards
-                  .filter((c) => c.type === "modifier")
-                  .map((card, idx) => (
-                    <div key={idx} className="w-16 h-24">
-                      <Card card={card} />
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Cards */}
-          {player.cards.some((c) => c.type === "action") && (
-            <div>
-              <p className="text-xs text-[#6b7684] font-mono font-semibold mb-3 tracking-widest">
-                ACTIONS
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {player.cards
-                  .filter((c) => c.type === "action")
-                  .map((card, idx) => (
-                    <div key={idx} className="w-16 h-24">
-                      <Card card={card} />
-                    </div>
-                  ))}
+                {player.modifierCards.map((card, idx) => (
+                  <div key={idx} className="w-16 h-24">
+                    <Card card={card} />
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Deck Info */}
+        {/* Score Info */}
         <div className="mt-6 pt-4 border-t-2 border-[#d4af37]/30 flex items-center justify-between text-sm">
           <div>
             <p className="text-xs text-[#6b7684] font-mono">Cards Remaining</p>
@@ -113,13 +103,13 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
   };
 
   const getCompactPlayerDisplay = (player: PlayerState, isCurrentPlayer: boolean) => {
-    const statusColor = player.busted
-      ? "text-[#ef476f]"
-      : player.stood
-        ? "text-[#06d6a0]"
-        : "text-[#00d9ff]";
-
-    const statusText = player.busted ? "BUST" : player.stood ? "STOOD" : "ACTIVE";
+    const status = getPlayerStatus(player);
+    const statusColor =
+      status === "BUSTED"
+        ? "text-[#ef476f]"
+        : status === "STOOD"
+          ? "text-[#06d6a0]"
+          : "text-[#00d9ff]";
 
     return (
       <div
@@ -134,15 +124,15 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
           <div className="min-w-0">
             <p className="font-mono font-bold text-sm truncate">{player.id}</p>
             <p className={`text-xs font-mono font-semibold ${statusColor}`}>
-              {statusText}
+              {status}
             </p>
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-xl font-mono font-bold text-[#d4af37]">
-              {player.numberTotal}
+              {player.roundScore}
             </p>
             <p className="text-xs text-[#6b7684] font-mono">
-              {player.cards.length} cards / {player.totalScore} total
+              {player.numberCards.length} cards / {player.totalScore} total
             </p>
           </div>
         </div>
@@ -152,8 +142,7 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
 
   const isCompact = gameState.players.length > 4;
 
-  const currentPlayer =
-    gameState.players[gameState.currentPlayerIndex];
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const otherPlayers = gameState.players.filter(
     (p) => p.id !== currentPlayer.id
   );
@@ -163,7 +152,7 @@ export default function GameVisualizer({ gameState }: GameVisualizerProps) {
       {/* Current Player - Featured */}
       <div>
         <h3 className="art-deco-title text-2xl mb-6">
-          {currentPlayer.busted ? "X" : currentPlayer.stood ? "+" : ">"} Current
+          {getPlayerStatus(currentPlayer) === "BUSTED" ? "X" : getPlayerStatus(currentPlayer) === "STOOD" ? "+" : ">"} Current
           Player
         </h3>
         {getPlayerDisplay(currentPlayer, true)}

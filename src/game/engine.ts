@@ -7,9 +7,8 @@
 import type {
   GameState,
   PlayerState,
+  NumberCard,
   Move,
-  VisibleGameState,
-  BotContext,
 } from "./types";
 import { createDeck, shuffle, shuffleSeeded } from "./deck";
 
@@ -26,15 +25,12 @@ const FLIP_7_BONUS = 15;
 export function createInitialState(playerIds: string[]): GameState {
   const players: PlayerState[] = playerIds.map((id) => ({
     id,
-    cards: [],
-    numberTotal: 0,
-    busted: false,
-    stood: false,
+    isActive: true,
+    numberCards: [],
+    roundScore: 0,
     totalScore: 0,
-    actionCards: [],
-    flipThreeActive: false,
-    flipThreeRemaining: 0,
-    numberValues: new Set(),
+    modifierCards: [],
+    secondChanceActive: false,
   }));
 
   const deck = shuffle(createDeck());
@@ -60,15 +56,12 @@ export function createInitialStateSeeded(
 ): GameState {
   const players: PlayerState[] = playerIds.map((id) => ({
     id,
-    cards: [],
-    numberTotal: 0,
-    busted: false,
-    stood: false,
+    isActive: true,
+    numberCards: [],
+    roundScore: 0,
     totalScore: 0,
-    actionCards: [],
-    flipThreeActive: false,
-    flipThreeRemaining: 0,
-    numberValues: new Set(),
+    modifierCards: [],
+    secondChanceActive: false,
   }));
 
   const deck = shuffleSeeded(createDeck(), seed);
@@ -86,64 +79,14 @@ export function createInitialStateSeeded(
 }
 
 // =============================================================================
-// State Visibility
+// State Cloning
 // =============================================================================
 
 /**
- * Get the visible game state for a specific player
+ * Deep clone game state via JSON serialization
  */
-export function getVisibleState(
-  state: GameState,
-  playerId: string
-): VisibleGameState {
-  const player = state.players.find((p) => p.id === playerId)!;
-  const opponents = state.players
-    .filter((p) => p.id !== playerId)
-    .map((opp) => ({
-      id: opp.id,
-      cardCount: opp.cards.length,
-      numberTotal: opp.stood || opp.busted ? opp.numberTotal : null,
-      busted: opp.busted,
-      stood: opp.stood,
-      score: opp.totalScore,
-      actionCardCount: opp.actionCards.length,
-    }));
-
-  return {
-    myCards: player.cards,
-    myNumberTotal: player.numberTotal,
-    myBusted: player.busted,
-    myStood: player.stood,
-    myScore: player.totalScore,
-    opponents,
-    revealedCards: state.revealedCards,
-    round: state.round,
-    cardsRemaining: state.deck.length,
-  };
-}
-
-/**
- * Get bot context for current player
- */
-export function getBotContext(state: GameState, _playerId: string): BotContext {
-  const legalMoves = getLegalMoves(state);
-
-  const moveHistory = state.revealedCards.map((card) => {
-    // Reconstruct from revealed cards - this is approximate, would need proper history tracking
-    return {
-      playerId: "", // Would need to track in state
-      action: "draw" as const,
-      cardDrawn: card,
-      numberTotal: 0,
-      busted: false,
-    };
-  });
-
-  return {
-    myId: _playerId,
-    legalMoves,
-    moveHistory,
-  };
+function cloneState(state: GameState): GameState {
+  return JSON.parse(JSON.stringify(state)) as GameState;
 }
 
 // =============================================================================
@@ -156,16 +99,12 @@ export function getBotContext(state: GameState, _playerId: string): BotContext {
 export function getLegalMoves(state: GameState): Array<"draw" | "stand"> {
   const player = state.players[state.currentPlayerIndex];
 
-  if (player.busted || player.stood) {
+  if (!player.isActive) {
     return [];
   }
 
-  const moves: Array<"draw" | "stand"> = [];
+  const moves: Array<"draw" | "stand"> = ["stand"];
 
-  // Can always stand (unless this is their first card dealing, but that's handled in setup)
-  moves.push("stand");
-
-  // Can draw if there are cards remaining
   if (state.deck.length > 0) {
     moves.push("draw");
   }
@@ -186,17 +125,6 @@ export function isMoveLegal(state: GameState, move: Move): boolean {
 // =============================================================================
 
 /**
- * Deep clone game state, restoring Set instances lost by JSON serialization
- */
-function cloneState(state: GameState): GameState {
-  const newState = JSON.parse(JSON.stringify(state)) as GameState;
-  for (const player of newState.players) {
-    player.numberValues = new Set(state.players.find(p => p.id === player.id)!.numberValues);
-  }
-  return newState;
-}
-
-/**
  * Apply a move and return new state
  */
 export function applyMove(state: GameState, move: Move): GameState {
@@ -204,57 +132,48 @@ export function applyMove(state: GameState, move: Move): GameState {
   const player = newState.players[newState.currentPlayerIndex];
 
   if (move.action === "stand") {
-    player.stood = true;
+    player.isActive = false;
+    advanceToNextPlayer(newState);
   } else if (move.action === "draw") {
-    // Player chose to draw
-    // Draw from deck
     if (newState.deck.length === 0) {
-      // No cards left - shouldn't happen with legal move check
       return newState;
     }
 
     const card = newState.deck.pop()!;
     newState.revealedCards.push(card);
 
-    // Add card to player's line
-    player.cards.push(card);
-
-    // Handle different card types
     if (card.type === "number") {
-      // Check for duplicate
-      if (player.numberValues.has(card.value)) {
-        player.busted = true;
+      const duplicate = player.numberCards.some((c) => (c as NumberCard).value === card.value);
+
+      if (duplicate) {
+        // Bust: round score 0, go inactive
+        player.roundScore = 0;
+        player.isActive = false;
+        advanceToNextPlayer(newState);
       } else {
-        player.numberValues.add(card.value);
-        player.numberTotal += card.value;
+        player.numberCards.push(card);
+        player.roundScore += card.value;
+
+        // Check for Flip 7
+        if (player.numberCards.length === 7) {
+          // End the round immediately — all players go inactive
+          for (const p of newState.players) {
+            p.isActive = false;
+          }
+          newState.roundOver = true;
+        } else {
+          advanceToNextPlayer(newState);
+        }
       }
     } else if (card.type === "modifier") {
-      // Modifiers don't affect busting
-    } else if (card.type === "action") {
-      // Action cards need to be resolved
-      // For now, just add to the player's action cards
-      player.actionCards.push(card);
-    }
-
-    // Check for Flip 7
-    if (!player.busted && player.numberValues.size === 7) {
-      player.stood = true;
-      newState.roundOver = true;
-    }
-
-    // Check for Flip Three
-    if (player.flipThreeActive) {
-      player.flipThreeRemaining--;
-      if (player.flipThreeRemaining === 0 || player.busted || player.numberValues.size === 7) {
-        player.flipThreeActive = false;
-      }
+      player.modifierCards.push(card);
+      advanceToNextPlayer(newState);
+    } else {
+      // Action card: discard and pass turn (action cards not yet implemented)
+      advanceToNextPlayer(newState);
     }
   }
 
-  // Advance to next player
-  advanceToNextPlayer(newState);
-
-  // Check if round is over
   if (isRoundOver(newState)) {
     newState.roundOver = true;
   }
@@ -263,23 +182,20 @@ export function applyMove(state: GameState, move: Move): GameState {
 }
 
 /**
- * Advance to next active player
+ * Advance to next active player. Sets roundOver if no active players remain.
  */
 function advanceToNextPlayer(state: GameState): void {
-  const startIndex = state.currentPlayerIndex;
-  let nextIndex = (state.currentPlayerIndex + 1) % state.players.length;
+  const total = state.players.length;
 
-  // Find next player who hasn't busted or stood
-  while (nextIndex !== startIndex) {
-    const player = state.players[nextIndex];
-    if (!player.busted && !player.stood) {
+  for (let i = 1; i <= total; i++) {
+    const nextIndex = (state.currentPlayerIndex + i) % total;
+    if (state.players[nextIndex].isActive) {
       state.currentPlayerIndex = nextIndex;
       return;
     }
-    nextIndex = (nextIndex + 1) % state.players.length;
   }
 
-  // All other players are done
+  // No active players remain
   state.roundOver = true;
 }
 
@@ -291,52 +207,7 @@ function advanceToNextPlayer(state: GameState): void {
  * Check if round is over
  */
 export function isRoundOver(state: GameState): boolean {
-  // Someone hit Flip 7
-  const flip7 = state.players.some(
-    (p) => p.numberValues.size === 7 && !p.busted
-  );
-  if (flip7) return true;
-
-  // All players have either busted or stood
-  const allDone = state.players.every((p) => p.busted || p.stood);
-  return allDone;
-}
-
-/**
- * Calculate final scores for the round and update total scores
- */
-function scoreRound(state: GameState): void {
-  const scores: Record<string, number> = {};
-
-  for (const player of state.players) {
-    if (player.busted) {
-      scores[player.id] = 0;
-    } else {
-      // Start with number total
-      let score = player.numberTotal;
-
-      // Apply modifiers
-      for (const card of player.cards) {
-        if (card.type === "modifier") {
-          if (card.modifier === "x2") {
-            score *= 2;
-          } else {
-            const bonus = parseInt(card.modifier.slice(1));
-            score += bonus;
-          }
-        }
-      }
-
-      // Add Flip 7 bonus if applicable
-      if (player.numberValues.size === 7) {
-        score += FLIP_7_BONUS;
-      }
-
-      scores[player.id] = score;
-    }
-
-    player.totalScore += scores[player.id];
-  }
+  return state.players.every((p) => !p.isActive);
 }
 
 /**
@@ -353,12 +224,9 @@ export function getWinner(state: GameState): string | null {
   if (!isGameOver(state)) return null;
 
   const maxScore = Math.max(...state.players.map((p) => p.totalScore));
-  const winner = state.players.find((p) => p.totalScore === maxScore);
+  const winners = state.players.filter((p) => p.totalScore === maxScore);
 
-  // Tie handling: return null for ties, or just first if we want to break ties
-  const tieCount = state.players.filter((p) => p.totalScore === maxScore)
-    .length;
-  return tieCount === 1 && winner ? winner.id : null;
+  return winners.length === 1 ? winners[0].id : null;
 }
 
 /**
@@ -379,41 +247,68 @@ export function calculateFinalScores(
 // =============================================================================
 
 /**
- * End the current round and prepare for next
+ * Score the current round and update total scores
+ */
+function scoreRound(state: GameState): void {
+  for (const player of state.players) {
+    // Busted players have roundScore 0 — nothing to compute
+    if (player.roundScore === 0 && player.numberCards.length === 0) {
+      // No cards drawn this round (or busted with 0 values), score stays 0
+      player.totalScore += 0;
+      continue;
+    }
+
+    // Start from number card sum (already tracked in roundScore, but recompute cleanly)
+    let score = player.numberCards.reduce((sum, c) => sum + c.value, 0);
+
+    // Apply modifier cards
+    for (const card of player.modifierCards) {
+      if (card.modifier === "x2") {
+        score *= 2;
+      } else {
+        score += parseInt(card.modifier.slice(1));
+      }
+    }
+
+    // Flip 7 bonus
+    if (player.numberCards.length === 7) {
+      score += FLIP_7_BONUS;
+    }
+
+    player.roundScore = score;
+    player.totalScore += score;
+  }
+}
+
+/**
+ * End the current round: score it, check game over, reset for next round
  */
 export function endRound(state: GameState): GameState {
   const newState = cloneState(state);
 
-  // Score the round
   scoreRound(newState);
 
-  // Check if game is over
   if (isGameOver(newState)) {
     newState.gameOver = true;
-    newState.winner = getWinner(newState) || null;
+    newState.winner = getWinner(newState);
     return newState;
   }
 
-  // Reset for next round
+  // Prepare next round
   newState.round++;
   newState.roundOver = false;
-
-  // Clear cards from players
-  for (const player of newState.players) {
-    player.cards = [];
-    player.numberTotal = 0;
-    player.busted = false;
-    player.stood = false;
-    player.actionCards = [];
-    player.flipThreeActive = false;
-    player.flipThreeRemaining = 0;
-    player.numberValues = new Set();
-  }
-
-  // Reset deck
   newState.deck = shuffle(createDeck());
   newState.revealedCards = [];
 
-  // Move to next dealer (handled by caller)
+  for (const player of newState.players) {
+    player.numberCards = [];
+    player.modifierCards = [];
+    player.roundScore = 0;
+    player.isActive = true;
+    player.secondChanceActive = false;
+  }
+
+  newState.currentPlayerIndex = 0;
+
   return newState;
 }
