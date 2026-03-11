@@ -178,7 +178,7 @@ export function applyMove(state: GameState, move: Move): ApplyMoveResult {
         advanceToNextPlayer(newState);
       } else {
         player.numberCards.push(card);
-        player.roundScore += card.value;
+        player.roundScore = computeLiveRoundScore(player);
 
         // Mid-round win check
         if (player.totalScore + player.roundScore >= WINNING_SCORE) {
@@ -192,6 +192,7 @@ export function applyMove(state: GameState, move: Move): ApplyMoveResult {
 
         // Check for Flip 7
         if (player.numberCards.length === 7) {
+          player.roundScore = computeLiveRoundScore(player) + FLIP_7_BONUS;
           events.push({ type: "flip7", playerId: player.id });
           // End the round immediately — all players go inactive
           for (const p of newState.players) {
@@ -204,6 +205,7 @@ export function applyMove(state: GameState, move: Move): ApplyMoveResult {
       }
     } else if (card.type === "modifier") {
       player.modifierCards.push(card);
+      player.roundScore = computeLiveRoundScore(player);
       advanceToNextPlayer(newState);
     } else {
       // Action card: pass turn (action cards not yet implemented)
@@ -234,6 +236,27 @@ function advanceToNextPlayer(state: GameState): void {
 
   // No active players remain
   state.roundOver = true;
+}
+
+// =============================================================================
+// Score Helpers
+// =============================================================================
+
+/**
+ * Compute a player's current round score including modifier cards.
+ * Does NOT include the Flip 7 bonus (that's only applied at round end).
+ */
+function computeLiveRoundScore(player: PlayerState): number {
+  let score = player.numberCards.reduce((sum, c) => sum + c.value, 0);
+  // x2 always applies before additive modifiers, regardless of draw order
+  const hasDouble = player.modifierCards.some((c) => c.modifier === "x2");
+  if (hasDouble) score *= 2;
+  for (const card of player.modifierCards) {
+    if (card.modifier !== "x2") {
+      score += parseInt(card.modifier.slice(1));
+    }
+  }
+  return score;
 }
 
 // =============================================================================
@@ -294,25 +317,14 @@ function scoreRound(state: GameState): void {
       continue;
     }
 
-    // Start from number card sum (already tracked in roundScore, but recompute cleanly)
-    let score = player.numberCards.reduce((sum, c) => sum + c.value, 0);
-
-    // Apply modifier cards
-    for (const card of player.modifierCards) {
-      if (card.modifier === "x2") {
-        score *= 2;
-      } else {
-        score += parseInt(card.modifier.slice(1));
-      }
-    }
+    player.roundScore = computeLiveRoundScore(player);
 
     // Flip 7 bonus
     if (player.numberCards.length === 7) {
-      score += FLIP_7_BONUS;
+      player.roundScore += FLIP_7_BONUS;
     }
 
-    player.roundScore = score;
-    player.totalScore += score;
+    player.totalScore += player.roundScore;
   }
 }
 
