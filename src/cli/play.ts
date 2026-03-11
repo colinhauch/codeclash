@@ -191,7 +191,7 @@ async function main() {
           if (key === "s" && legalMoves.includes("stand")) break;
         }
 
-        state = applyMove(state, { action: key === "d" ? "draw" : "stand" });
+        state = applyMove(state, { action: key === "d" ? "draw" : "stand" }).state;
 
         if (key === "d") {
           // The drawn card is now at the end of revealedCards
@@ -219,7 +219,7 @@ async function main() {
 
         const botMove = bot(state, botId);
         const prevRevealedLen = state.revealedCards.length;
-        state = applyMove(state, botMove);
+        state = applyMove(state, botMove).state;
 
         if (botMove.action === "draw") {
           if (state.revealedCards.length > prevRevealedLen) {
@@ -240,7 +240,7 @@ async function main() {
     }
 
     // ── Round over ──────────────────────────────────────────────────────────
-    state = endRound(state);
+    state = endRound(state).state;
 
     if (!state.gameOver) {
       renderState(state, humanId, null, "");

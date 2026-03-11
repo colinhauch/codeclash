@@ -98,7 +98,7 @@ export default function GameReplay() {
       states.push(JSON.parse(JSON.stringify(state)));
 
       for (const move of moves) {
-        state = applyMove(state, move);
+        state = applyMove(state, move).state;
         states.push(JSON.parse(JSON.stringify(state)));
       }
 

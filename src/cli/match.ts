@@ -7,6 +7,8 @@
 import type {
   BotInfo,
   GameResult,
+  GameEvent,
+  RoundCheckpoint,
   MoveHistoryEntry,
   MultiplayerGameResult,
   PlayerPlacement,
@@ -45,14 +47,35 @@ export async function runMatch(
 
   let state = initialState;
   const moveHistory: MoveHistoryEntry[] = [];
-  let gameId = `${bot1.id}-vs-${bot2.id}-${Date.now()}`;
+  const events: GameEvent[] = [];
+  const checkpoints: RoundCheckpoint[] = [];
+  const gameId = `${bot1.id}-vs-${bot2.id}-${Date.now()}`;
+
+  // Emit game_start and initial round_start
+  events.push({
+    type: "game_start",
+    playerIds,
+    startingPlayerIndex: state.currentPlayerIndex,
+    ...(config.seed != null ? { seed: config.seed } : {}),
+  });
+  events.push({
+    type: "round_start",
+    round: 1,
+    startingPlayerId: state.players[state.currentPlayerIndex].id,
+  });
+  // Checkpoint for round 1
+  checkpoints.push({ round: 1, eventIndex: events.length - 1, state: JSON.parse(JSON.stringify(state)) });
 
   // Game loop
   while (!isGameOver(state)) {
     // Check if round is over
     if (isRoundOver(state)) {
-      state = endRound(state);
+      const result = endRound(state);
+      state = result.state;
+      events.push(...result.events);
       if (isGameOver(state)) break;
+      // Checkpoint for new round
+      checkpoints.push({ round: state.round, eventIndex: events.length - 1, state: JSON.parse(JSON.stringify(state)) });
       continue;
     }
 
@@ -72,8 +95,12 @@ export async function runMatch(
       continue;
     }
 
+    events.push({ type: "turn_start", playerId: currentPlayer.id });
+
     // Call bot with timeout
     let move;
+    let wasTimeout = false;
+    let wasInvalid = false;
     try {
       move = await executeWithTimeout(
         () => bot(state, currentPlayer.id),
@@ -83,16 +110,23 @@ export async function runMatch(
 
       // Validate move
       if (!legalMoves.includes(move.action)) {
+        wasInvalid = true;
         move = { action: "stand" as const };
       }
     } catch (e) {
       // Bot threw error, default to stand
+      wasTimeout = true;
       move = { action: "stand" as const };
     }
 
+    events.push({ type: "move_chosen", playerId: currentPlayer.id, action: move.action, wasTimeout, wasInvalid });
+
     // Apply move and record
     const prevRevealedLength = state.revealedCards.length;
-    state = applyMove(state, move);
+    const result = applyMove(state, move);
+    state = result.state;
+    events.push(...result.events);
+
     const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
     const cardDrawn = move.action === "draw" && state.revealedCards.length > prevRevealedLength
       ? state.revealedCards[state.revealedCards.length - 1]
@@ -111,12 +145,16 @@ export async function runMatch(
   const finalScores = calculateFinalScores(state);
   const winner = getWinner(state);
 
+  events.push({ type: "game_end", winnerId: winner, finalScores, totalRounds: state.round });
+
   return {
     id: gameId,
     winner,
     moves: moveHistory,
     finalScores,
     rounds: state.round,
+    events,
+    checkpoints,
   };
 }
 
@@ -136,12 +174,30 @@ export async function runMultiplayerMatch(
 
   let state = initialState;
   const moveHistory: MoveHistoryEntry[] = [];
+  const events: GameEvent[] = [];
+  const checkpoints: RoundCheckpoint[] = [];
   const gameId = `grandprix-${Date.now()}`;
+
+  events.push({
+    type: "game_start",
+    playerIds,
+    startingPlayerIndex: state.currentPlayerIndex,
+    ...(config.seed != null ? { seed: config.seed } : {}),
+  });
+  events.push({
+    type: "round_start",
+    round: 1,
+    startingPlayerId: state.players[state.currentPlayerIndex].id,
+  });
+  checkpoints.push({ round: 1, eventIndex: events.length - 1, state: JSON.parse(JSON.stringify(state)) });
 
   while (!isGameOver(state)) {
     if (isRoundOver(state)) {
-      state = endRound(state);
+      const result = endRound(state);
+      state = result.state;
+      events.push(...result.events);
       if (isGameOver(state)) break;
+      checkpoints.push({ round: state.round, eventIndex: events.length - 1, state: JSON.parse(JSON.stringify(state)) });
       continue;
     }
 
@@ -155,7 +211,11 @@ export async function runMultiplayerMatch(
       continue;
     }
 
+    events.push({ type: "turn_start", playerId: currentPlayer.id });
+
     let move;
+    let wasTimeout = false;
+    let wasInvalid = false;
     try {
       move = await executeWithTimeout(
         () => botFn(state, currentPlayer.id),
@@ -164,14 +224,21 @@ export async function runMultiplayerMatch(
       );
 
       if (!legalMoves.includes(move.action)) {
+        wasInvalid = true;
         move = { action: "stand" as const };
       }
     } catch (e) {
+      wasTimeout = true;
       move = { action: "stand" as const };
     }
 
+    events.push({ type: "move_chosen", playerId: currentPlayer.id, action: move.action, wasTimeout, wasInvalid });
+
     const prevRevealedLength = state.revealedCards.length;
-    state = applyMove(state, move);
+    const result = applyMove(state, move);
+    state = result.state;
+    events.push(...result.events);
+
     const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
     const cardDrawn = move.action === "draw" && state.revealedCards.length > prevRevealedLength
       ? state.revealedCards[state.revealedCards.length - 1]
@@ -189,12 +256,16 @@ export async function runMultiplayerMatch(
   const finalScores = calculateFinalScores(state);
   const placements = calculatePlacements(bots.length, finalScores);
 
+  events.push({ type: "game_end", winnerId: getWinner(state), finalScores, totalRounds: state.round });
+
   return {
     id: gameId,
     placements,
     moves: moveHistory,
     finalScores,
     rounds: state.round,
+    events,
+    checkpoints,
   };
 }
 

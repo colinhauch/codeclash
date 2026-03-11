@@ -36,7 +36,7 @@ export default function SampleReplay() {
         let state = createInitialState(data.playerIds);
         states.push(JSON.parse(JSON.stringify(state)));
         for (const move of data.moves) {
-          state = applyMove(state, move);
+          state = applyMove(state, move).state;
           states.push(JSON.parse(JSON.stringify(state)));
         }
         setGameStates(states);
