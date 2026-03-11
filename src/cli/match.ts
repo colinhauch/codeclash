@@ -91,10 +91,10 @@ export async function runMatch(
     }
 
     // Apply move and record
-    const prevDeckLength = state.deck.length;
+    const prevRevealedLength = state.revealedCards.length;
     state = applyMove(state, move);
     const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
-    const cardDrawn = move.action === "draw" && state.deck.length < prevDeckLength
+    const cardDrawn = move.action === "draw" && state.revealedCards.length > prevRevealedLength
       ? state.revealedCards[state.revealedCards.length - 1]
       : undefined;
 
@@ -170,10 +170,10 @@ export async function runMultiplayerMatch(
       move = { action: "stand" as const };
     }
 
-    const prevDeckLength = state.deck.length;
+    const prevRevealedLength = state.revealedCards.length;
     state = applyMove(state, move);
     const updatedPlayer = state.players.find((p) => p.id === currentPlayer.id)!;
-    const cardDrawn = move.action === "draw" && state.deck.length < prevDeckLength
+    const cardDrawn = move.action === "draw" && state.revealedCards.length > prevRevealedLength
       ? state.revealedCards[state.revealedCards.length - 1]
       : undefined;
 

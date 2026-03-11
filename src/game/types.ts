@@ -58,6 +58,8 @@ export interface PlayerState {
   modifierCards: ModifierCard[];
   /** This player has a second chance card */
   secondChanceActive: boolean;
+  /** Whether this player busted this round (drew a duplicate number card) */
+  busted: boolean;
 }
 
 // =============================================================================
@@ -71,8 +73,12 @@ export interface GameState {
   deck: Card[];
   /** All cards that have been revealed this round */
   revealedCards: Card[];
+  /** Cards that have been played/discarded; reshuffled into deck when deck empties */
+  discardPile: Card[];
   /** Index of current player in players array */
   currentPlayerIndex: number;
+  /** Index of the player who started the current round (used to rotate each round) */
+  roundStartPlayerIndex: number;
   /** Current round number (starts at 1) */
   round: number;
   /** Whether round has ended */

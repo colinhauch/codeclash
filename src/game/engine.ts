@@ -10,7 +10,7 @@ import type {
   NumberCard,
   Move,
 } from "./types";
-import { createDeck, shuffle, shuffleSeeded } from "./deck";
+import { shuffle, shuffleSeeded, createDeck } from "./deck";
 
 const WINNING_SCORE = 200;
 const FLIP_7_BONUS = 15;
@@ -31,15 +31,19 @@ export function createInitialState(playerIds: string[]): GameState {
     totalScore: 0,
     modifierCards: [],
     secondChanceActive: false,
+    busted: false,
   }));
 
   const deck = shuffle(createDeck());
+  const startIndex = playerIds.length <= 1 ? 0 : Math.floor(Math.random() * playerIds.length);
 
   return {
     players,
     deck,
     revealedCards: [],
-    currentPlayerIndex: 0,
+    discardPile: [],
+    currentPlayerIndex: startIndex,
+    roundStartPlayerIndex: startIndex,
     round: 1,
     roundOver: false,
     gameOver: false,
@@ -62,15 +66,21 @@ export function createInitialStateSeeded(
     totalScore: 0,
     modifierCards: [],
     secondChanceActive: false,
+    busted: false,
   }));
 
   const deck = shuffleSeeded(createDeck(), seed);
+  const startIndex = playerIds.length <= 1
+    ? 0
+    : Math.floor(((seed * 9301 + 49297) % 233280) / 233280 * playerIds.length);
 
   return {
     players,
     deck,
     revealedCards: [],
-    currentPlayerIndex: 0,
+    discardPile: [],
+    currentPlayerIndex: startIndex,
+    roundStartPlayerIndex: startIndex,
     round: 1,
     roundOver: false,
     gameOver: false,
@@ -105,7 +115,7 @@ export function getLegalMoves(state: GameState): Array<"draw" | "stand"> {
 
   const moves: Array<"draw" | "stand"> = ["stand"];
 
-  if (state.deck.length > 0) {
+  if (state.deck.length > 0 || state.discardPile.length > 0) {
     moves.push("draw");
   }
 
@@ -135,8 +145,13 @@ export function applyMove(state: GameState, move: Move): GameState {
     player.isActive = false;
     advanceToNextPlayer(newState);
   } else if (move.action === "draw") {
+    // Mid-round reshuffle: if deck is empty, shuffle discard pile into deck
     if (newState.deck.length === 0) {
-      return newState;
+      if (newState.discardPile.length === 0) {
+        return newState; // No cards anywhere
+      }
+      newState.deck = shuffle([...newState.discardPile]);
+      newState.discardPile = [];
     }
 
     const card = newState.deck.pop()!;
@@ -146,13 +161,26 @@ export function applyMove(state: GameState, move: Move): GameState {
       const duplicate = player.numberCards.some((c) => (c as NumberCard).value === card.value);
 
       if (duplicate) {
-        // Bust: round score 0, go inactive
+        // Bust: discard all player cards, round score 0, go inactive
+        newState.discardPile.push(...player.numberCards, ...player.modifierCards);
+        player.numberCards = [];
+        player.modifierCards = [];
         player.roundScore = 0;
+        player.busted = true;
         player.isActive = false;
         advanceToNextPlayer(newState);
       } else {
         player.numberCards.push(card);
         player.roundScore += card.value;
+
+        // Mid-round win check
+        if (player.totalScore + player.roundScore >= WINNING_SCORE) {
+          for (const p of newState.players) p.isActive = false;
+          newState.roundOver = true;
+          newState.gameOver = true;
+          newState.winner = player.id;
+          return newState;
+        }
 
         // Check for Flip 7
         if (player.numberCards.length === 7) {
@@ -169,7 +197,7 @@ export function applyMove(state: GameState, move: Move): GameState {
       player.modifierCards.push(card);
       advanceToNextPlayer(newState);
     } else {
-      // Action card: discard and pass turn (action cards not yet implemented)
+      // Action card: pass turn (action cards not yet implemented)
       advanceToNextPlayer(newState);
     }
   }
@@ -251,10 +279,9 @@ export function calculateFinalScores(
  */
 function scoreRound(state: GameState): void {
   for (const player of state.players) {
-    // Busted players have roundScore 0 — nothing to compute
-    if (player.roundScore === 0 && player.numberCards.length === 0) {
-      // No cards drawn this round (or busted with 0 values), score stays 0
-      player.totalScore += 0;
+    // Busted players score 0 this round — skip recomputation
+    if (player.busted) {
+      player.roundScore = 0;
       continue;
     }
 
@@ -294,10 +321,14 @@ export function endRound(state: GameState): GameState {
     return newState;
   }
 
+  // Move all remaining player cards to the discard pile
+  for (const player of newState.players) {
+    newState.discardPile.push(...player.numberCards, ...player.modifierCards);
+  }
+
   // Prepare next round
   newState.round++;
   newState.roundOver = false;
-  newState.deck = shuffle(createDeck());
   newState.revealedCards = [];
 
   for (const player of newState.players) {
@@ -306,9 +337,13 @@ export function endRound(state: GameState): GameState {
     player.roundScore = 0;
     player.isActive = true;
     player.secondChanceActive = false;
+    player.busted = false;
   }
 
-  newState.currentPlayerIndex = 0;
+  // Rotate starting player by one seat
+  const nextStart = (newState.roundStartPlayerIndex + 1) % newState.players.length;
+  newState.roundStartPlayerIndex = nextStart;
+  newState.currentPlayerIndex = nextStart;
 
   return newState;
 }
