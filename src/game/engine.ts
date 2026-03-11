@@ -169,11 +169,9 @@ export function applyMove(state: GameState, move: Move): ApplyMoveResult {
       const duplicate = player.numberCards.some((c) => (c as NumberCard).value === card.value);
 
       if (duplicate) {
-        // Bust: discard all player cards, round score 0, go inactive
+        // Bust: keep cards visible until round end, score 0, go inactive
         events.push({ type: "bust", playerId: player.id, duplicateValue: card.value });
-        newState.discardPile.push(...player.numberCards, ...player.modifierCards);
-        player.numberCards = [];
-        player.modifierCards = [];
+        player.numberCards.push(card); // keep the duplicate card visible
         player.roundScore = 0;
         player.busted = true;
         player.isActive = false;
