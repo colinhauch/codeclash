@@ -9,6 +9,9 @@ import type {
   PlayerState,
   NumberCard,
   Move,
+  GameEvent,
+  ApplyMoveResult,
+  EndRoundResult,
 } from "./types";
 import { shuffle, shuffleSeeded, createDeck } from "./deck";
 
@@ -135,33 +138,39 @@ export function isMoveLegal(state: GameState, move: Move): boolean {
 // =============================================================================
 
 /**
- * Apply a move and return new state
+ * Apply a move and return new state with emitted events
  */
-export function applyMove(state: GameState, move: Move): GameState {
+export function applyMove(state: GameState, move: Move): ApplyMoveResult {
   const newState = cloneState(state);
   const player = newState.players[newState.currentPlayerIndex];
+  const events: GameEvent[] = [];
 
   if (move.action === "stand") {
+    events.push({ type: "stand", playerId: player.id, roundScore: player.roundScore });
     player.isActive = false;
     advanceToNextPlayer(newState);
   } else if (move.action === "draw") {
     // Mid-round reshuffle: if deck is empty, shuffle discard pile into deck
     if (newState.deck.length === 0) {
       if (newState.discardPile.length === 0) {
-        return newState; // No cards anywhere
+        return { state: newState, events }; // No cards anywhere
       }
+      const reshuffleCount = newState.discardPile.length;
       newState.deck = shuffle([...newState.discardPile]);
       newState.discardPile = [];
+      events.push({ type: "deck_reshuffled", cardsFromDiscard: reshuffleCount });
     }
 
     const card = newState.deck.pop()!;
     newState.revealedCards.push(card);
+    events.push({ type: "card_drawn", playerId: player.id, card });
 
     if (card.type === "number") {
       const duplicate = player.numberCards.some((c) => (c as NumberCard).value === card.value);
 
       if (duplicate) {
         // Bust: discard all player cards, round score 0, go inactive
+        events.push({ type: "bust", playerId: player.id, duplicateValue: card.value });
         newState.discardPile.push(...player.numberCards, ...player.modifierCards);
         player.numberCards = [];
         player.modifierCards = [];
@@ -175,15 +184,17 @@ export function applyMove(state: GameState, move: Move): GameState {
 
         // Mid-round win check
         if (player.totalScore + player.roundScore >= WINNING_SCORE) {
+          events.push({ type: "mid_round_win", playerId: player.id, totalScore: player.totalScore + player.roundScore });
           for (const p of newState.players) p.isActive = false;
           newState.roundOver = true;
           newState.gameOver = true;
           newState.winner = player.id;
-          return newState;
+          return { state: newState, events };
         }
 
         // Check for Flip 7
         if (player.numberCards.length === 7) {
+          events.push({ type: "flip7", playerId: player.id });
           // End the round immediately — all players go inactive
           for (const p of newState.players) {
             p.isActive = false;
@@ -206,7 +217,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     newState.roundOver = true;
   }
 
-  return newState;
+  return { state: newState, events };
 }
 
 /**
@@ -310,15 +321,23 @@ function scoreRound(state: GameState): void {
 /**
  * End the current round: score it, check game over, reset for next round
  */
-export function endRound(state: GameState): GameState {
+export function endRound(state: GameState): EndRoundResult {
   const newState = cloneState(state);
+  const events: GameEvent[] = [];
 
   scoreRound(newState);
+
+  // Emit round_end with scores
+  const scores: Record<string, { roundScore: number; totalScore: number }> = {};
+  for (const player of newState.players) {
+    scores[player.id] = { roundScore: player.roundScore, totalScore: player.totalScore };
+  }
+  events.push({ type: "round_end", round: newState.round, scores });
 
   if (isGameOver(newState)) {
     newState.gameOver = true;
     newState.winner = getWinner(newState);
-    return newState;
+    return { state: newState, events };
   }
 
   // Move all remaining player cards to the discard pile
@@ -345,5 +364,7 @@ export function endRound(state: GameState): GameState {
   newState.roundStartPlayerIndex = nextStart;
   newState.currentPlayerIndex = nextStart;
 
-  return newState;
+  events.push({ type: "round_start", round: newState.round, startingPlayerId: newState.players[nextStart].id });
+
+  return { state: newState, events };
 }

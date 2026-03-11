@@ -111,6 +111,52 @@ export interface MoveHistoryEntry {
 }
 
 // =============================================================================
+// Game Event Log
+// =============================================================================
+
+export type GameEvent =
+  | { type: "game_start"; playerIds: string[]; startingPlayerIndex: number; seed?: number }
+  | { type: "round_start"; round: number; startingPlayerId: string }
+  | { type: "turn_start"; playerId: string }
+  | { type: "move_chosen"; playerId: string; action: MoveAction; wasTimeout: boolean; wasInvalid: boolean }
+  | { type: "card_drawn"; playerId: string; card: Card }
+  | { type: "bust"; playerId: string; duplicateValue: number }
+  | { type: "flip7"; playerId: string }
+  | { type: "stand"; playerId: string; roundScore: number }
+  | { type: "deck_reshuffled"; cardsFromDiscard: number }
+  | { type: "mid_round_win"; playerId: string; totalScore: number }
+  | { type: "round_end"; round: number; scores: Record<string, { roundScore: number; totalScore: number }> }
+  | { type: "action_resolved"; playerId: string; action: ActionType; targetId?: string }
+  | { type: "game_end"; winnerId: string | null; finalScores: Record<string, number>; totalRounds: number };
+
+export interface RoundCheckpoint {
+  round: number;
+  /** Index into events array where this round starts */
+  eventIndex: number;
+  /** Full state at round start */
+  state: GameState;
+}
+
+export interface GameLog {
+  gameId: string;
+  playerIds: string[];
+  events: GameEvent[];
+  checkpoints: RoundCheckpoint[];
+}
+
+/** Result of applying a move: new state + events emitted */
+export interface ApplyMoveResult {
+  state: GameState;
+  events: GameEvent[];
+}
+
+/** Result of ending a round: new state + events emitted */
+export interface EndRoundResult {
+  state: GameState;
+  events: GameEvent[];
+}
+
+// =============================================================================
 // Bot Interface
 // =============================================================================
 
@@ -198,6 +244,10 @@ export interface GameResult {
   finalScores: Record<string, number>;
   /** Total number of rounds */
   rounds: number;
+  /** Structured event log */
+  events?: GameEvent[];
+  /** State checkpoints at round boundaries */
+  checkpoints?: RoundCheckpoint[];
 }
 
 export interface Standing {
@@ -232,6 +282,10 @@ export interface MultiplayerGameResult {
   moves: MoveHistoryEntry[];
   finalScores: Record<string, number>;
   rounds: number;
+  /** Structured event log */
+  events?: GameEvent[];
+  /** State checkpoints at round boundaries */
+  checkpoints?: RoundCheckpoint[];
 }
 
 export interface GrandPrixResult {
