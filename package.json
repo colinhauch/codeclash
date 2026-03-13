@@ -12,6 +12,7 @@
     "tournament": "bun run src/cli/tournament.ts",
     "upload-results": "bun run src/cli/upload-results.ts",
     "play": "bun run src/cli/play.ts",
+    "admin": "bun run src/cli/admin.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
