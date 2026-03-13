@@ -61,6 +61,11 @@ export default {
       return handleGetTournamentStandings(env, id);
     }
 
+    // Create and configure a match directly (for testing / grand prix)
+    if (url.pathname === "/api/match/create" && request.method === "POST") {
+      return handleCreateMatch(request, env);
+    }
+
     // Admin proxy endpoints
     if (url.pathname.startsWith("/api/admin/")) {
       return handleAdminProxy(request, env, url);
@@ -153,6 +158,26 @@ async function handleGetTournamentStandings(env: Env, tournamentId: string): Pro
     });
   } catch {
     return Response.json({ error: "Failed to fetch standings" }, { status: 500 });
+  }
+}
+
+// =============================================================================
+// Direct Match Creation (practice / grand prix)
+// =============================================================================
+
+async function handleCreateMatch(request: Request, env: Env): Promise<Response> {
+  try {
+    const config = await request.json();
+    const matchDOId = env.MATCH.newUniqueId();
+    const matchDO = env.MATCH.get(matchDOId);
+    await matchDO.fetch(new Request("https://internal/configure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    }));
+    return Response.json({ matchId: matchDOId.toString() });
+  } catch (err) {
+    return Response.json({ error: "Failed to create match" }, { status: 500 });
   }
 }
 

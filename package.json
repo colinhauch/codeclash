@@ -13,6 +13,8 @@
     "upload-results": "bun run src/cli/upload-results.ts",
     "play": "bun run src/cli/play.ts",
     "admin": "bun run src/cli/admin.ts",
+    "qualifying": "bun run src/cli/test-qualifying.ts",
+    "grand-prix": "bun run src/cli/test-grand-prix.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
