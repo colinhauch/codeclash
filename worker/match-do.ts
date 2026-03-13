@@ -2,7 +2,12 @@
  * CodeClash - Match Durable Object
  *
  * Runs a complete match series (N games) between connected players over WebSocket.
- * Uses the Cloudflare WebSocket Hibernation API for efficient idle handling.
+ *
+ * Game loop design: the loop runs synchronously within a single DO execution
+ * context. When a turn requires a player move, we send "your_turn" and return —
+ * the loop resumes from handleMove() when the player's "move" message arrives.
+ * This avoids awaiting a Promise across WebSocket message boundaries, which
+ * breaks in Cloudflare's execution model.
  */
 
 import {
@@ -43,17 +48,19 @@ interface GameTally {
   wins: Record<string, number>;
   totalScores: Record<string, number>;
   gamesPlayed: number;
+  totalRounds: number;
 }
 
 export class MatchDO implements DurableObject {
   private config: MatchConfig | null = null;
   private players: Map<string, ConnectedPlayer> = new Map();
   private state: GameState | null = null;
-  private tally: GameTally = { wins: {}, totalScores: {}, gamesPlayed: 0 };
+  private tally: GameTally = { wins: {}, totalScores: {}, gamesPlayed: 0, totalRounds: 0 };
   private currentGame = 0;
+  private roundsThisGame = 0;
   private matchStarted = false;
-  private moveResolver: ((action: MoveAction) => void) | null = null;
-  private moveTimeout: ReturnType<typeof setTimeout> | null = null;
+  // When true, we're waiting for the current player to send a move
+  private waitingForMove = false;
 
   constructor(
     private ctx: DurableObjectState,
@@ -63,10 +70,8 @@ export class MatchDO implements DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    // Configure match via POST from LobbyDO
     if (url.pathname === "/configure" && request.method === "POST") {
       this.config = (await request.json()) as MatchConfig;
-      // Initialize tally
       for (const id of this.config.playerIds) {
         this.tally.wins[id] = 0;
         this.tally.totalScores[id] = 0;
@@ -74,13 +79,10 @@ export class MatchDO implements DurableObject {
       return new Response("configured", { status: 200 });
     }
 
-    // WebSocket upgrade for players
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
-
       this.ctx.acceptWebSocket(server);
-
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -103,21 +105,20 @@ export class MatchDO implements DurableObject {
         this.handleIdentify(ws, msg.playerId, msg.name);
         break;
       case "move":
-        this.handleMove(ws, msg.action);
+        await this.handleMove(ws, msg.action);
         break;
     }
   }
 
   async webSocketClose(ws: WebSocket, _code: number): Promise<void> {
-    // Mark player as disconnected
     for (const player of this.players.values()) {
       if (player.ws === ws) {
         player.connected = false;
-        // If waiting for this player's move, auto-stand
-        if (this.moveResolver && this.state) {
+        // If we're waiting for this player's move, auto-stand and continue
+        if (this.waitingForMove && this.state) {
           const currentId = this.state.players[this.state.currentPlayerIndex].id;
           if (currentId === player.playerId) {
-            this.resolveMove("stand");
+            await this.handleMove(ws, "stand");
           }
         }
         break;
@@ -138,7 +139,6 @@ export class MatchDO implements DurableObject {
       this.sendTo(ws, { type: "error", message: "Match not configured" });
       return;
     }
-
     if (!this.config.playerIds.includes(playerId)) {
       this.sendTo(ws, { type: "error", message: "Not a participant in this match" });
       return;
@@ -146,39 +146,45 @@ export class MatchDO implements DurableObject {
 
     this.players.set(playerId, { playerId, name, ws, connected: true });
 
-    // Check if all players have connected
     if (this.players.size === this.config.playerIds.length && !this.matchStarted) {
       this.matchStarted = true;
       this.startMatch();
     }
   }
 
-  private handleMove(ws: WebSocket, action: MoveAction): void {
-    if (!this.state || !this.moveResolver) return;
+  private async handleMove(ws: WebSocket, action: MoveAction): Promise<void> {
+    if (!this.state || !this.waitingForMove) return;
 
     // Verify it's from the current player
     const currentId = this.state.players[this.state.currentPlayerIndex].id;
     const player = this.players.get(currentId);
-    if (!player || player.ws !== ws) {
+    if (player && player.ws !== ws && player.connected) {
       this.sendTo(ws, { type: "error", message: "Not your turn" });
       return;
     }
 
-    // Validate the move
+    // Validate move
     const legalMoves = getLegalMoves(this.state);
-    if (!legalMoves.includes(action)) {
-      // Invalid move — default to stand
-      this.resolveMove("stand");
-    } else {
-      this.resolveMove(action);
+    const validAction = legalMoves.includes(action) ? action : "stand";
+
+    this.waitingForMove = false;
+
+    // Apply move and broadcast events
+    const result = applyMove(this.state, { action: validAction });
+    this.state = result.state;
+    for (const event of result.events) {
+      this.broadcast({ type: "game_event", event });
     }
+
+    // Continue the match execution
+    this.continueMatch();
   }
 
   // ---------------------------------------------------------------------------
-  // Match Execution
+  // Match / Game Execution
   // ---------------------------------------------------------------------------
 
-  private async startMatch(): Promise<void> {
+  private startMatch(): void {
     if (!this.config) return;
 
     const opponentNames = (playerId: string) =>
@@ -186,7 +192,6 @@ export class MatchDO implements DurableObject {
         .filter((id) => id !== playerId)
         .map((id) => this.config!.playerNames[id] || id);
 
-    // Notify all players
     for (const player of this.players.values()) {
       this.sendTo(player.ws, {
         type: "match_start",
@@ -195,141 +200,144 @@ export class MatchDO implements DurableObject {
       });
     }
 
-    // Run all games
-    for (let i = 0; i < this.config.totalGames; i++) {
-      this.currentGame = i + 1;
-      await this.runSingleGame();
-    }
-
-    // Match complete — build summary and report
-    await this.completeMatch();
+    this.continueMatch();
   }
 
-  private async runSingleGame(): Promise<void> {
+  /**
+   * State machine: processes the match one decision point at a time.
+   *
+   * Called from:
+   * - startMatch() — to begin
+   * - handleMove() — after each player move
+   * - Recursively from itself for auto-resolutions (round end, no legal moves, etc.)
+   *
+   * Returns only when waiting for a player move. All auto-resolutions
+   * (round scoring, disconnected players, game transitions) are handled via
+   * tail recursion.
+   */
+  private continueMatch(): void {
     if (!this.config) return;
 
-    const playerIds = this.config.playerIds;
-    this.state = createInitialState(playerIds);
-
-    // Game loop
-    while (!isGameOver(this.state)) {
-      if (isRoundOver(this.state)) {
-        const result = endRound(this.state);
-        this.state = result.state;
-        // Broadcast round events
-        for (const event of result.events) {
-          this.broadcast({ type: "game_event", event });
-        }
-        if (isGameOver(this.state)) break;
-        continue;
+    // 1. Start a new game if needed
+    if (!this.state) {
+      this.currentGame++;
+      if (this.currentGame > this.config.totalGames) {
+        console.log(`[MatchDO] all ${this.config.totalGames} games complete`);
+        this.completeMatch();
+        return;
       }
+      console.log(`[MatchDO] starting game ${this.currentGame}/${this.config.totalGames}`);
+      this.state = createInitialState(this.config.playerIds);
+      this.roundsThisGame = 0;
+      // Fall through to next check
+    }
 
-      const currentPlayer = this.state.players[this.state.currentPlayerIndex];
-      const legalMoves = getLegalMoves(this.state);
-
-      if (legalMoves.length === 0) {
-        this.state.currentPlayerIndex =
-          (this.state.currentPlayerIndex + 1) % this.state.players.length;
-        continue;
-      }
-
-      // Send visible state to current player
-      const visibleState = toVisibleState(this.state);
-      const player = this.players.get(currentPlayer.id);
-
-      let action: MoveAction;
-      if (player && player.connected) {
-        this.sendTo(player.ws, {
-          type: "your_turn",
-          state: visibleState,
-          legalMoves: legalMoves,
-        });
-
-        // Wait for move with timeout
-        action = await this.waitForMove(this.config.moveTimeoutMs);
-      } else {
-        // Player disconnected — auto-stand
-        action = "stand";
-      }
-
-      // Apply move
-      const result = applyMove(this.state, { action });
+    // 2. Score any completed rounds
+    if (isRoundOver(this.state)) {
+      this.roundsThisGame++;
+      const result = endRound(this.state);
       this.state = result.state;
-
-      // Broadcast events to all players
       for (const event of result.events) {
         this.broadcast({ type: "game_event", event });
       }
+      // If the round scoring ended the game, fall through to step 3 directly
+      // rather than recursing (which would re-trigger isRoundOver infinitely
+      // because endRound leaves players inactive when game is over).
+      if (!this.state.gameOver) {
+        this.continueMatch();
+        return;
+      }
     }
 
-    // Game complete
-    const finalScores = calculateFinalScores(this.state);
-    const winner = getWinner(this.state);
+    // 3. Check if game is over (covers: post-endRound scoring hit 200, or mid_round_win)
+    if (this.state.gameOver || isGameOver(this.state)) {
+      const finalScores = calculateFinalScores(this.state);
+      const winner = getWinner(this.state);
 
-    // Update tally
-    this.tally.gamesPlayed++;
-    if (winner) {
-      this.tally.wins[winner] = (this.tally.wins[winner] || 0) + 1;
-    }
-    for (const [id, score] of Object.entries(finalScores)) {
-      this.tally.totalScores[id] = (this.tally.totalScores[id] || 0) + score;
+      this.tally.gamesPlayed++;
+      this.tally.totalRounds += this.roundsThisGame;
+      if (winner) {
+        this.tally.wins[winner] = (this.tally.wins[winner] || 0) + 1;
+      }
+      for (const [id, score] of Object.entries(finalScores)) {
+        this.tally.totalScores[id] = (this.tally.totalScores[id] || 0) + score;
+      }
+
+      this.broadcast({
+        type: "game_complete",
+        gameNumber: this.currentGame,
+        scores: finalScores,
+        winner,
+      });
+
+      console.log(`[MatchDO] finished game ${this.currentGame}`);
+      this.state = null;  // Clear for next game
+      // Tail-recursive: start next game
+      this.continueMatch();
+      return;
     }
 
-    this.broadcast({
-      type: "game_complete",
-      gameNumber: this.currentGame,
-      scores: finalScores,
-      winner,
+    // 4. Get current player and legal moves
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    const legalMoves = getLegalMoves(this.state);
+
+    // 5. Handle: no legal moves — skip to next player
+    if (legalMoves.length === 0) {
+      this.state.currentPlayerIndex =
+        (this.state.currentPlayerIndex + 1) % this.state.players.length;
+      // Tail-recursive: check next player
+      this.continueMatch();
+      return;
+    }
+
+    // 6. Handle: disconnected player — auto-stand
+    const player = this.players.get(currentPlayer.id);
+    if (!player || !player.connected) {
+      const result = applyMove(this.state, { action: "stand" });
+      this.state = result.state;
+      for (const event of result.events) {
+        this.broadcast({ type: "game_event", event });
+      }
+      // Tail-recursive: continue after auto-move
+      this.continueMatch();
+      return;
+    }
+
+    // 7. Request move from live player and STOP
+    this.waitingForMove = true;
+    this.sendTo(player.ws, {
+      type: "your_turn",
+      state: toVisibleState(this.state),
+      legalMoves,
     });
-  }
-
-  private waitForMove(timeoutMs: number): Promise<MoveAction> {
-    return new Promise<MoveAction>((resolve) => {
-      this.moveResolver = resolve;
-      this.moveTimeout = setTimeout(() => {
-        this.resolveMove("stand");
-      }, timeoutMs);
-    });
-  }
-
-  private resolveMove(action: MoveAction): void {
-    if (this.moveTimeout) {
-      clearTimeout(this.moveTimeout);
-      this.moveTimeout = null;
-    }
-    if (this.moveResolver) {
-      const resolver = this.moveResolver;
-      this.moveResolver = null;
-      resolver(action);
-    }
+    // Return here; resume via handleMove() when player sends their move
   }
 
   // ---------------------------------------------------------------------------
   // Match Completion
   // ---------------------------------------------------------------------------
 
-  private async completeMatch(): Promise<void> {
+  private completeMatch(): void {
     if (!this.config) return;
+    console.log(`[MatchDO] all games complete, building summary`);
 
     const summary = this.buildSummary();
 
-    // Send results to each player
     for (const player of this.players.values()) {
       let result: "win" | "loss" | "draw" = "draw";
-      if (summary.winner === player.name) {
-        result = "win";
-      } else if (summary.winner !== null) {
-        result = "loss";
-      }
+      if (summary.winner === player.name) result = "win";
+      else if (summary.winner !== null) result = "loss";
 
-      this.sendTo(player.ws, {
-        type: "match_complete",
-        result,
-        summary,
-      });
+      this.sendTo(player.ws, { type: "match_complete", result, summary });
     }
 
-    // Write to KV
+    // Fire-and-forget async work (KV write + lobby report)
+    this.ctx.waitUntil(this.finalizeMatch(summary));
+  }
+
+  private async finalizeMatch(summary: MatchSummary): Promise<void> {
+    if (!this.config) return;
+
     if (this.config.mode === "tournament") {
       await kvPut(
         this.env.RESULTS,
@@ -338,7 +346,6 @@ export class MatchDO implements DurableObject {
       );
     }
 
-    // Report result back to LobbyDO
     await this.reportToLobby(summary);
   }
 
@@ -354,11 +361,8 @@ export class MatchDO implements DurableObject {
         : 0,
     }));
 
-    // Sort by wins descending, assign ranks
     players.sort((a, b) => b.wins - a.wins);
-    players.forEach((p, i) => {
-      p.rank = i + 1;
-    });
+    players.forEach((p, i) => { p.rank = i + 1; });
 
     const winner = players[0].wins > (players[1]?.wins ?? 0) ? players[0].name : null;
 
@@ -370,6 +374,9 @@ export class MatchDO implements DurableObject {
       started_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
       games_played: this.tally.gamesPlayed,
+      avg_rounds: this.tally.gamesPlayed > 0
+        ? this.tally.totalRounds / this.tally.gamesPlayed
+        : 0,
       players,
       winner,
     };
@@ -377,16 +384,10 @@ export class MatchDO implements DurableObject {
 
   private async reportToLobby(summary: MatchSummary): Promise<void> {
     if (!this.config) return;
-
     try {
       const lobbyId = this.env.LOBBY.idFromName(this.config.tournamentId);
       const lobby = this.env.LOBBY.get(lobbyId);
-
-      const report: MatchResultReport = {
-        matchId: this.config.matchId,
-        summary,
-      };
-
+      const report: MatchResultReport = { matchId: this.config.matchId, summary };
       await lobby.fetch(new Request("https://internal/match-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -402,18 +403,12 @@ export class MatchDO implements DurableObject {
   // ---------------------------------------------------------------------------
 
   private sendTo(ws: WebSocket, msg: MatchToClientMessage): void {
-    try {
-      ws.send(JSON.stringify(msg));
-    } catch {
-      // WebSocket may be closed
-    }
+    try { ws.send(JSON.stringify(msg)); } catch {}
   }
 
   private broadcast(msg: MatchToClientMessage): void {
     for (const player of this.players.values()) {
-      if (player.connected) {
-        this.sendTo(player.ws, msg);
-      }
+      if (player.connected) this.sendTo(player.ws, msg);
     }
   }
 }

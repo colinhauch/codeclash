@@ -57,7 +57,7 @@ export class LobbyDO implements DurableObject {
   private phase: TournamentPhase = "waiting";
   private format: TournamentFormat = "round-robin";
   private gamesPerMatch = 20;
-  private moveTimeoutMs = 1000;
+  private moveTimeoutMs = 30000;
 
   // Match tracking
   private activeMatches: Map<string, MatchTracker> = new Map();
@@ -364,7 +364,7 @@ export class LobbyDO implements DurableObject {
         phase.push({
           matchId: crypto.randomUUID(),
           playerIds: [ids[i], ids[j]],
-          phase: "qualifying",
+          phase: "grand_prix",
           complete: false,
         });
       }
@@ -420,6 +420,9 @@ export class LobbyDO implements DurableObject {
       body: JSON.stringify(config),
     }));
 
+    // The DO hex ID is what clients use to connect via /ws/match/:id
+    const doHexId = matchDOId.toString();
+
     // Notify players of their match assignment
     for (const playerId of match.playerIds) {
       const player = this.players.get(playerId);
@@ -431,7 +434,7 @@ export class LobbyDO implements DurableObject {
 
       this.sendToPlayer(player.ws, {
         type: "match_assigned",
-        matchId: match.matchId,
+        matchId: doHexId,
         opponents,
         phase: match.phase,
       });
