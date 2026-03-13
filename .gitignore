@@ -20,6 +20,7 @@ out/
 .env
 .env.local
 .env.*.local
+.dev.vars
 
 # Claude Code
 .claude/
