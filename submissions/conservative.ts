@@ -24,12 +24,8 @@ const bot: BotInfo = {
       return helpers.stand();
     }
 
-    // Otherwise draw if we can
-    if (state.deck.length > 0) {
-      return helpers.draw();
-    }
-
-    return helpers.stand();
+    // Otherwise draw
+    return helpers.draw();
   },
 };
 

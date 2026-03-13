@@ -350,10 +350,12 @@ export function endRound(state: GameState): EndRoundResult {
     return { state: newState, events };
   }
 
-  // Move all remaining player cards to the discard pile
-  for (const player of newState.players) {
-    newState.discardPile.push(...player.numberCards, ...player.modifierCards);
-  }
+  // Return all cards drawn this round to the discard pile.
+  // revealedCards is the authoritative list of every card drawn this round
+  // (player.numberCards / modifierCards are subsets of it), so discarding
+  // revealedCards avoids double-counting while also capturing action cards
+  // that only live in revealedCards and not in any player hand.
+  newState.discardPile.push(...newState.revealedCards);
 
   // Prepare next round
   newState.round++;

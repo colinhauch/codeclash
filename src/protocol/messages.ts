@@ -14,6 +14,8 @@ import type {
   GameEvent,
 } from "../game/types";
 
+export type { MoveAction };
+
 // =============================================================================
 // Shared Types
 // =============================================================================
@@ -50,6 +52,7 @@ export interface MatchSummary {
   started_at: string;
   completed_at?: string;
   games_played: number;
+  avg_rounds: number;
   players: MatchPlayerResult[];
   winner: string | null;
 }

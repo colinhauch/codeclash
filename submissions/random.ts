@@ -11,8 +11,7 @@ const bot: BotInfo = {
   author: "CodeClash",
   description: "Makes random legal moves",
   bot: (_state: GameState, _myId: string): Move => {
-    const legalMoves = _state.deck.length > 0 ? ["draw", "stand"] : ["stand"];
-    return helpers.randomMove(legalMoves as ("draw" | "stand")[]);
+    return helpers.randomMove(["draw", "stand"]);
   },
 };
 

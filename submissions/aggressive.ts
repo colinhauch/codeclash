@@ -15,7 +15,7 @@ const bot: BotInfo = {
     const uniqueNumbers = helpers.getUniqueNumberValues(me.numberCards).length;
 
     // If we have 6 unique numbers, keep drawing for Flip 7
-    if (uniqueNumbers === 6 && state.deck.length > 0) {
+    if (uniqueNumbers === 6) {
       return helpers.draw();
     }
 
@@ -25,11 +25,7 @@ const bot: BotInfo = {
     }
 
     // Otherwise, keep drawing to accumulate cards
-    if (state.deck.length > 0) {
-      return helpers.draw();
-    }
-
-    return helpers.stand();
+    return helpers.draw();
   },
 };
 
