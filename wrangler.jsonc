@@ -20,6 +20,28 @@
     }
   ],
 
+  // Durable Objects
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LOBBY",
+        "class_name": "LobbyDO"
+      },
+      {
+        "name": "MATCH",
+        "class_name": "MatchDO"
+      }
+    ]
+  },
+
+  // DO migrations
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["LobbyDO", "MatchDO"]
+    }
+  ],
+
   // Custom domain routing
   "routes": [
     {
